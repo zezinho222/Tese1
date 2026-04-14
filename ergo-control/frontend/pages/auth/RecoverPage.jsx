@@ -78,7 +78,7 @@ export default function RecoverPage({ navigation }) {
             style={sharedStyles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backArrow}>←</Text>
+            <Text style={styles.backArrow}>‹</Text>
           </TouchableOpacity>
 
           <Text style={styles.title}>Recuperar password</Text>
@@ -96,7 +96,6 @@ export default function RecoverPage({ navigation }) {
             <TextInput
               style={[
                 sharedStyles.input,
-                email.length > 0 && sharedStyles.inputSelected,
               ]}
               placeholder="Email"
               placeholderTextColor={colors.text.placeholder}
@@ -138,9 +137,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 28,
   },
-  backArrow: {
-    fontSize: 22,
+    backArrow: {
+    fontSize: 36,
+    fontWeight: '700',
     color: colors.text.primary,
+    lineHeight: 36,
   },
   title: {
     fontSize: 26,

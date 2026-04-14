@@ -52,7 +52,7 @@ export default function LoginPage({ navigation }) {
             style={sharedStyles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backArrow}>←</Text>
+            <Text style={styles.backArrow}>‹</Text>
           </TouchableOpacity>
 
           {/* Logo */}
@@ -79,7 +79,6 @@ export default function LoginPage({ navigation }) {
             <TextInput
               style={[
                 sharedStyles.input,
-                email.length > 0 && sharedStyles.inputSelected,
               ]}
               placeholder="Email / Telemóvel"
               placeholderTextColor={colors.text.placeholder}
@@ -93,7 +92,6 @@ export default function LoginPage({ navigation }) {
             <TextInput
               style={[
                 sharedStyles.input,
-                password.length > 0 && sharedStyles.inputSelected,
               ]}
               placeholder="Password"
               placeholderTextColor={colors.text.placeholder}
@@ -106,7 +104,6 @@ export default function LoginPage({ navigation }) {
             <TouchableOpacity
               style={[
                 sharedStyles.primaryButton,
-                !isValid && sharedStyles.buttonDisabled,
               ]}
               onPress={handleLogin}
               disabled={!isValid || loading}
@@ -152,10 +149,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingBottom: 32,
   },
-  backArrow: {
-    fontSize: 22,
+    backArrow: {
+    fontSize: 36,
+    fontWeight: '700',
     color: colors.text.primary,
+    lineHeight: 36,
   },
+  
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
