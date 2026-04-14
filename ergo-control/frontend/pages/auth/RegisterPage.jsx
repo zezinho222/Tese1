@@ -13,6 +13,33 @@ import {
 } from 'react-native';
 import { colors, sharedStyles } from '../../utils/shared-Styles';
 
+
+const Field = ({ field, placeholder, secure, keyboard, form, setForm, errors }) => {
+  const set = (value) => setForm((f) => ({ ...f, [field]: value }));
+
+  return (
+    <View style={styles.fieldWrap}>
+      <TextInput
+        style={[
+          sharedStyles.input,
+          errors[field] && styles.inputError,
+        ]}
+        placeholder={placeholder}
+        placeholderTextColor={colors.text.placeholder}
+        value={form[field]}
+        onChangeText={set}
+        secureTextEntry={!!secure}
+        keyboardType={keyboard || 'default'}
+        autoCapitalize={secure || keyboard === 'email-address' ? 'none' : 'words'}
+        autoCorrect={false}
+      />
+      {errors[field] ? (
+        <Text style={styles.fieldError}>{errors[field]}</Text>
+      ) : null}
+    </View>
+  );
+};
+
 export default function RegisterPage({ navigation }) {
   const [form, setForm] = useState({
     name: '',
@@ -23,8 +50,6 @@ export default function RegisterPage({ navigation }) {
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
-
-  const set = (field) => (value) => setForm((f) => ({ ...f, [field]: value }));
 
   const validate = () => {
     const e = {};
@@ -37,8 +62,8 @@ export default function RegisterPage({ navigation }) {
   };
 
   const isValid =
-    form.name.length > 0 &&
-    form.email.length > 0 &&
+    form.name.trim().length > 0 &&
+    form.email.includes('@') &&
     form.password.length >= 8 &&
     form.password === form.confirmPassword;
 
@@ -46,9 +71,7 @@ export default function RegisterPage({ navigation }) {
     if (!validate()) return;
     setLoading(true);
     try {
-      // TODO: chamar useAuth().register(form)
       await new Promise(r => setTimeout(r, 1000));
-      // navigation.replace('MainTabs');
     } catch (e) {
       setErrors({ general: 'Erro ao criar conta. Tente novamente.' });
     } finally {
@@ -56,28 +79,7 @@ export default function RegisterPage({ navigation }) {
     }
   };
 
-  const Field = ({ field, placeholder, secure, keyboard, optional }) => (
-    <View style={styles.fieldWrap}>
-      <TextInput
-        style={[
-          sharedStyles.input,
-          form[field].length > 0 && sharedStyles.inputSelected,
-          errors[field] && styles.inputError,
-        ]}
-        placeholder={placeholder}
-        placeholderTextColor={colors.text.placeholder}
-        value={form[field]}
-        onChangeText={set(field)}
-        secureTextEntry={!!secure}
-        keyboardType={keyboard || 'default'}
-        autoCapitalize={secure || keyboard === 'email-address' ? 'none' : 'words'}
-        autoCorrect={false}
-      />
-      {errors[field] ? (
-        <Text style={styles.fieldError}>{errors[field]}</Text>
-      ) : null}
-    </View>
-  );
+  const fieldProps = { form, setForm, errors };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -89,12 +91,12 @@ export default function RegisterPage({ navigation }) {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Back */}
+          {/* ✅ Seta mais grossa usando Text com peso bold */}
           <TouchableOpacity
             style={sharedStyles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backArrow}>←</Text>
+            <Text style={styles.backArrow}>‹</Text>
           </TouchableOpacity>
 
           <Text style={styles.title}>Registo</Text>
@@ -106,12 +108,13 @@ export default function RegisterPage({ navigation }) {
           ) : null}
 
           <View style={styles.form}>
-            <Field field="name" placeholder="Nome completo" />
-            <Field field="email" placeholder="Email" keyboard="email-address" />
-            <Field field="phone" placeholder="Telemóvel (Opcional)" keyboard="phone-pad" />
-            <Field field="password" placeholder="Password (mínimo 8 caracteres)" secure />
-            <Field field="confirmPassword" placeholder="Confirmar Password" secure />
+            <Field field="name" placeholder="Nome completo" {...fieldProps} />
+            <Field field="email" placeholder="Email" keyboard="email-address" {...fieldProps} />
+            <Field field="phone" placeholder="Telemóvel (Opcional)" keyboard="phone-pad" {...fieldProps} />
+            <Field field="password" placeholder="Password (mínimo 8 caracteres)" secure {...fieldProps} />
+            <Field field="confirmPassword" placeholder="Confirmar Password" secure {...fieldProps} />
 
+            {/* ✅ Botão azul quando válido, cinzento quando não */}
             <TouchableOpacity
               style={[
                 sharedStyles.primaryButton,
@@ -124,7 +127,12 @@ export default function RegisterPage({ navigation }) {
               {loading ? (
                 <ActivityIndicator color={colors.white} />
               ) : (
-                <Text style={sharedStyles.primaryButtonText}>Continuar</Text>
+                <Text style={[
+                  sharedStyles.primaryButtonText,
+                  !isValid && styles.buttonTextDisabled,
+                ]}>
+                  Continuar
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -145,9 +153,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingBottom: 32,
   },
+  
   backArrow: {
-    fontSize: 22,
+    fontSize: 36,
+    fontWeight: '700',
     color: colors.text.primary,
+    lineHeight: 36,
   },
   title: {
     fontSize: 28,
@@ -182,5 +193,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.text.red,
     marginLeft: 4,
+  },
+  buttonTextDisabled: {
+    color: colors.text.secondary,
   },
 });
