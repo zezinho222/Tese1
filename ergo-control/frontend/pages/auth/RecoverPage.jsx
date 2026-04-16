@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { colors, sharedStyles } from '../../utils/shared-Styles';
+import { api } from '../../api';
 
 export default function RecoverPage({ navigation }) {
   const [email, setEmail] = useState('');
@@ -21,19 +22,24 @@ export default function RecoverPage({ navigation }) {
   const isValid = email.includes('@');
 
   const handleSend = async () => {
-    if (!isValid) return;
-    setLoading(true);
-    setError('');
-    try {
-      // TODO: chamar api.requestPasswordReset(email)
-      await new Promise(r => setTimeout(r, 1000));
-      setSent(true);
-    } catch {
-      setError('Não foi possível enviar o email. Tente novamente.');
-    } finally {
-      setLoading(false);
+  if (!isValid) return;
+  setLoading(true);
+  setError('');
+  try {
+    const data = await api.forgotPassword({ email });
+
+    if (!data.success) {
+      setError(data.message || 'Erro ao enviar email.');
+      return;
     }
-  };
+
+    setSent(true);
+  } catch {
+    setError('Não foi possível enviar o email. Tente novamente.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ── Ecrã de confirmação após envio ──
   if (sent) {

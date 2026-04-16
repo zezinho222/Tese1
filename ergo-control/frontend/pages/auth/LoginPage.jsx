@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { colors, sharedStyles } from '../../utils/shared-Styles';
+import { api } from '../../api';
 
 export default function LoginPage({ navigation }) {
   const [email, setEmail] = useState('');
@@ -23,19 +24,24 @@ export default function LoginPage({ navigation }) {
   const isValid = email.length > 0 && password.length > 0;
 
   const handleLogin = async () => {
-    if (!isValid) return;
-    setLoading(true);
-    setError('');
-    try {
-      // TODO: chamar useAuth().login(email, password)
-      await new Promise(r => setTimeout(r, 1000)); // placeholder
-      // navigation.replace('MainTabs');
-    } catch (e) {
-      setError('Email ou password incorretos.');
-    } finally {
-      setLoading(false);
+  if (!isValid) return;
+  setLoading(true);
+  setError('');
+  try {
+    const data = await api.login({ email, password });
+
+    if (!data.success) {
+      setError(data.message || 'Email ou password incorretos.');
+      return;
     }
-  };
+
+    navigation.replace('MainTabs');
+  } catch (e) {
+    setError('Erro de ligação. Tente novamente.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <SafeAreaView style={styles.container}>

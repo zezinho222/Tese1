@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { colors, sharedStyles } from '../../utils/shared-Styles';
-
+import { api } from '../../api';
 
 const Field = ({ field, placeholder, secure, keyboard, form, setForm, errors }) => {
   const set = (value) => setForm((f) => ({ ...f, [field]: value }));
@@ -68,16 +68,28 @@ export default function RegisterPage({ navigation }) {
     form.password === form.confirmPassword;
 
   const handleRegister = async () => {
-    if (!validate()) return;
-    setLoading(true);
-    try {
-      await new Promise(r => setTimeout(r, 1000));
-    } catch (e) {
-      setErrors({ general: 'Erro ao criar conta. Tente novamente.' });
-    } finally {
-      setLoading(false);
+  if (!validate()) return;
+  setLoading(true);
+  try {
+    const data = await api.register({
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      password: form.password,
+    });
+
+    if (!data.success) {
+      setErrors({ general: data.message || 'Erro ao criar conta.' });
+      return;
     }
-  };
+
+    navigation.navigate('Login');
+  } catch (e) {
+    setErrors({ general: 'Erro de ligação. Tente novamente.' });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fieldProps = { form, setForm, errors };
 
