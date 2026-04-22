@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { colors, sharedStyles } from '../../utils/shared-Styles';
 import { api } from '../../api';
+import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage({ navigation }) {
   const [email, setEmail] = useState('');
@@ -35,7 +36,7 @@ export default function LoginPage({ navigation }) {
       return;
     }
 
-    navigation.replace('MainTabs');
+    await login(data.user, data.token);
   } catch (e) {
     setError('Erro de ligação. Tente novamente.');
   } finally {
