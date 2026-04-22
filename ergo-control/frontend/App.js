@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import AuthStack from './frontend/navigation/AuthStack';
-import MainTabs from './frontend/navigation/MainTabs';
-import { AuthProvider, useAuth } from './frontend/context/AuthContext';
+import AuthStack from './navigation/AuthStack';
+import MainTabs from './navigation/MainTabs';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 function RootNavigator() {
   const { user, login } = useAuth();
