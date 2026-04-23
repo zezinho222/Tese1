@@ -62,7 +62,7 @@ export default function DataPage({ navigation }) {
       {/* Header — ocupa ~18% do ecrã */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Olá 👋</Text>
+          <Text style={styles.greeting}>Olá 👋,</Text>
           <Text style={styles.name}>{user?.name || 'Utilizador'}</Text>
         </View>
       </View>
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
 
   /* ── Header ── */
   header: {
-    flex: 14,
+    flex: 5,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -155,8 +155,9 @@ const styles = StyleSheet.create({
 
   /* ── Cards ── */
   cardsSection: {
-    flex: 52,
+    flex: 30,
     justifyContent: 'space-evenly',
+    marginTop: -80,
   },
   card: {
     flexDirection: 'row',
@@ -216,9 +217,9 @@ const styles = StyleSheet.create({
 
   /* ── Resumo ── */
   resumoSection: {
-    flex: 16,
+    flex: 7,
     justifyContent: 'center',
-    paddingBottom: 12,
+    paddingBottom: 15,
   },
   sectionTitle: {
     fontSize: 14,
