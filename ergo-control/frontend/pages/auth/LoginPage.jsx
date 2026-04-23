@@ -17,6 +17,7 @@ import { api } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage({ navigation }) {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
