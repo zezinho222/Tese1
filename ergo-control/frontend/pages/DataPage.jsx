@@ -65,11 +65,6 @@ export default function DataPage({ navigation }) {
           <Text style={styles.greeting}>Olá 👋</Text>
           <Text style={styles.name}>{user?.name || 'Utilizador'}</Text>
         </View>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {(user?.name || 'U')[0].toUpperCase()}
-          </Text>
-        </View>
       </View>
 
       {/* Cards — ocupam ~50% do ecrã */}
