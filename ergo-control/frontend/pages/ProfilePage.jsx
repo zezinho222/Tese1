@@ -1,6 +1,7 @@
 import React from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
+  StatusBar, ScrollView,
 } from 'react-native';
 import { colors } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
@@ -12,8 +13,22 @@ const stats = [
 ];
 
 const settings = [
-  { icon: '👤', title: 'Dados Pessoais', subtitle: 'Nome, email, password' },
-  { icon: '🔔', title: 'Notificações', subtitle: 'Notificações, vibrações' },
+  {
+    icon: '👤',
+    title: 'Dados Pessoais',
+    subtitle: 'Nome, email, password',
+    color: '#DBEAFE',
+    borderColor: '#3B82F6',
+    accentColor: '#3B82F6',
+  },
+  {
+    icon: '🔔',
+    title: 'Notificações',
+    subtitle: 'Notificações, vibrações',
+    color: '#FFF3CD',
+    borderColor: '#F59E0B',
+    accentColor: '#F59E0B',
+  },
 ];
 
 export default function ProfilePage() {
@@ -27,15 +42,16 @@ export default function ProfilePage() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Perfil</Text>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Avatar */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <Text style={styles.name}>{user?.name || 'Utilizador'}</Text>
+          <Text style={styles.userName}>{user?.name || 'Utilizador'}</Text>
         </View>
 
         {/* Stats */}
@@ -50,17 +66,21 @@ export default function ProfilePage() {
 
         {/* Definições */}
         <Text style={styles.sectionTitle}>Definições</Text>
-        <View style={styles.settingsCard}>
-          {settings.map((s, i) => (
-            <TouchableOpacity key={s.title} style={[styles.settingRow, i > 0 && styles.settingBorder]}>
-              <View style={styles.settingIcon}>
-                <Text style={{ fontSize: 20 }}>{s.icon}</Text>
+        <View style={styles.settingsCards}>
+          {settings.map((s) => (
+            <TouchableOpacity
+              key={s.title}
+              style={styles.card}
+              activeOpacity={0.82}
+            >
+              <View style={styles.iconCircle}>
+                <Text style={styles.iconText}>{s.icon}</Text>
               </View>
-              <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>{s.title}</Text>
-                <Text style={styles.settingSubtitle}>{s.subtitle}</Text>
+              <View style={styles.cardText}>
+                <Text style={styles.cardTitle}>{s.title}</Text>
+                <Text style={styles.cardSubtitle}>{s.subtitle}</Text>
               </View>
-              <Text style={styles.arrow}>→</Text>
+              <Text style={styles.cardArrow}>›</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -76,51 +96,170 @@ export default function ProfilePage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  title: {
-    fontSize: 20, fontWeight: '700', color: colors.text.primary,
-    textAlign: 'center', paddingVertical: 16,
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingHorizontal: 20,
   },
-  scroll: { paddingHorizontal: 20, paddingBottom: 32 },
-  avatarSection: { alignItems: 'center', marginBottom: 20 },
+
+  userName: {
+  fontSize: 20,
+  fontWeight: '800',
+  color: colors.text?.primary ?? '#111827',
+  marginTop: 10,
+  letterSpacing: -0.5,
+  textAlign: 'center',
+},
+
+  /* ── Scroll ── */
+  scroll: {
+    paddingBottom: 32,
+  },
+
+  /* ── Avatar ── */
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 60,
+  },
   avatar: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: colors.primary, justifyContent: 'center',
-    alignItems: 'center', marginBottom: 10,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#E0E7FF',
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  avatarText: { color: colors.white, fontSize: 22, fontWeight: '700' },
-  name: { fontSize: 18, fontWeight: '700', color: colors.text.primary },
+  avatarText: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#4F46E5',
+  },
+
+  /* ── Stats ── */
   statsRow: {
-    flexDirection: 'row', backgroundColor: colors.white,
-    borderRadius: 16, padding: 16, marginBottom: 24,
-    borderWidth: 1, borderColor: colors.border,
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 28,
   },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 22, fontWeight: '800', color: colors.text.primary },
-  statLabel: { fontSize: 11, color: colors.text.secondary, marginTop: 2 },
+  statItem: {
+    flex: 1,
+    backgroundColor: colors.white ?? '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border ?? '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    gap: 2,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text?.primary ?? '#111827',
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: colors.text?.secondary ?? '#6B7280',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  /* ── Section title ── */
   sectionTitle: {
-    fontSize: 14, fontWeight: '600', color: colors.text.secondary, marginBottom: 10,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text?.secondary ?? '#6B7280',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-  settingsCard: {
-    backgroundColor: colors.white, borderRadius: 16,
-    borderWidth: 1, borderColor: colors.border, marginBottom: 20,
+
+  /* ── Cards (igual ao DataPage) ── */
+  settingsCards: {
+    gap: 12,
+    marginBottom: 28,
   },
-  settingRow: {
-    flexDirection: 'row', alignItems: 'center', padding: 16,
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white ?? '#FFFFFF',
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingRight: 16,
+    paddingLeft: 0,
+    borderWidth: 1,
+    borderColor: colors.border ?? '#E5E7EB',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  settingBorder: { borderTopWidth: 1, borderTopColor: colors.border },
-  settingIcon: {
-    width: 40, height: 40, borderRadius: 10,
-    backgroundColor: colors.background, justifyContent: 'center',
-    alignItems: 'center', marginRight: 12,
+  cardAccent: {
+    width: 5,
+    alignSelf: 'stretch',
+    borderRadius: 4,
+    marginRight: 14,
+    marginLeft: 0,
   },
-  settingText: { flex: 1 },
-  settingTitle: { fontSize: 15, fontWeight: '600', color: colors.text.primary },
-  settingSubtitle: { fontSize: 12, color: colors.text.secondary, marginTop: 2 },
-  arrow: { fontSize: 18, color: colors.text.secondary },
+  iconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 15,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',       // cinzento claro
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+    marginLeft: 10,
+  },
+  iconText: {
+    fontSize: 26,
+  },
+  cardText: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text?.primary ?? '#111827',
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    color: colors.text?.secondary ?? '#6B7280',
+    marginTop: 3,
+  },
+  cardArrow: {
+    fontSize: 36,
+    fontWeight: '300',
+    lineHeight: 36,
+    marginRight: 4,
+  },
+
+  /* ── Logout ── */
   logoutBtn: {
-    backgroundColor: colors.redBackground, borderRadius: 12,
-    paddingVertical: 14, alignItems: 'center',
+    backgroundColor: colors.redBackground ?? '#FEF2F2',
+    borderRadius: 18,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
-  logoutText: { color: colors.text.red, fontWeight: '600', fontSize: 15 },
+  logoutText: {
+    color: colors.text?.red ?? '#DC2626',
+    fontWeight: '700',
+    fontSize: 15,
+  },
 });

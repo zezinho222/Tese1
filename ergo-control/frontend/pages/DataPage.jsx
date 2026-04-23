@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
 
   /* ── Header ── */
   header: {
-    flex: 5,
+    flex: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
 
   /* ── Cards ── */
   cardsSection: {
-    flex: 30,
+    flex: 20,
     justifyContent: 'space-evenly',
     marginTop: -80,
   },
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
 
   /* ── Resumo ── */
   resumoSection: {
-    flex: 7,
+    flex: 5,
     justifyContent: 'center',
     paddingBottom: 15,
   },
