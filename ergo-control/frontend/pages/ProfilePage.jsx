@@ -1,7 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
-  StatusBar, ScrollView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  StatusBar,
+  ScrollView,
+  Modal,
 } from 'react-native';
 import { colors } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
@@ -17,22 +23,17 @@ const settings = [
     icon: '👤',
     title: 'Dados Pessoais',
     subtitle: 'Nome, email, password',
-    color: '#DBEAFE',
-    borderColor: '#3B82F6',
-    accentColor: '#3B82F6',
   },
   {
     icon: '🔔',
     title: 'Notificações',
     subtitle: 'Notificações, vibrações',
-    color: '#FFF3CD',
-    borderColor: '#F59E0B',
-    accentColor: '#F59E0B',
   },
 ];
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const initials = user?.name
     ?.split(' ')
@@ -86,11 +87,55 @@ export default function ProfilePage() {
         </View>
 
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Text style={styles.logoutText}>↪ Terminar Sessão</Text>
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={() => setShowLogoutModal(true)}
+        >
+          <Text style={styles.logoutText}>Terminar Sessão</Text>
         </TouchableOpacity>
 
       </ScrollView>
+
+      {/* ── Modal de confirmação ── */}
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        {/* Overlay escuro */}
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={() => setShowLogoutModal(false)}
+        >
+          {/* Card do modal — stopPropagation para não fechar ao clicar dentro */}
+          <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
+
+            <Text style={styles.modalTitle}>Tem a certeza que quer{'\n'}terminar a sessão?</Text>
+
+            {/* Confirmar */}
+            <TouchableOpacity
+              style={styles.modalConfirmBtn}
+              onPress={logout}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalConfirmText}>Sim, tenho!</Text>
+            </TouchableOpacity>
+
+            {/* Cancelar */}
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={() => setShowLogoutModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalCancelText}>Não, cancelar!</Text>
+            </TouchableOpacity>
+
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -103,15 +148,14 @@ const styles = StyleSheet.create({
   },
 
   userName: {
-  fontSize: 20,
-  fontWeight: '800',
-  color: colors.text?.primary ?? '#111827',
-  marginTop: 10,
-  letterSpacing: -0.5,
-  textAlign: 'center',
-},
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text?.primary ?? '#111827',
+    marginTop: 10,
+    letterSpacing: -0.5,
+    textAlign: 'center',
+  },
 
-  /* ── Scroll ── */
   scroll: {
     paddingBottom: 32,
   },
@@ -184,7 +228,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  /* ── Cards (igual ao DataPage) ── */
+  /* ── Cards ── */
   settingsCards: {
     gap: 12,
     marginBottom: 28,
@@ -206,19 +250,12 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  cardAccent: {
-    width: 5,
-    alignSelf: 'stretch',
-    borderRadius: 4,
-    marginRight: 14,
-    marginLeft: 0,
-  },
   iconCircle: {
     width: 54,
     height: 54,
     borderRadius: 15,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',       // cinzento claro
+    borderColor: '#E5E7EB',
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
@@ -248,7 +285,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
 
-  /* ── Logout ── */
+  /* ── Logout button ── */
   logoutBtn: {
     backgroundColor: colors.redBackground ?? '#FEF2F2',
     borderRadius: 18,
@@ -261,5 +298,66 @@ const styles = StyleSheet.create({
     color: colors.text?.red ?? '#DC2626',
     fontWeight: '700',
     fontSize: 15,
+  },
+
+  /* ── Modal overlay ── */
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+
+  /* ── Modal card ── */
+  modalCard: {
+    width: '100%',
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 24,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text?.primary ?? '#1F2937',
+    textAlign: 'center',
+    lineHeight: 26,
+    marginBottom: 4,
+  },
+
+  /* Confirmar — fundo vermelho suave (sharedStyles.redButton) */
+  modalConfirmBtn: {
+    backgroundColor: colors.redBackground,
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    color: colors.text?.red ?? '#ef4444',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  /* Cancelar — fundo branco com borda (sharedStyles.cancelButton) */
+  modalCancelBtn: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  modalCancelText: {
+    color: colors.text?.secondary ?? '#6B7280',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
