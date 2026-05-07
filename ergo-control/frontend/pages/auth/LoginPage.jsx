@@ -66,7 +66,7 @@ export default function LoginPage({ navigation }) {
           {/* Logo */}
           <View style={styles.logoRow}>
             <Image
-              source={require('../../assets/logo_aplicacao.png')}
+              source={require('../../assets/ErgoControl.png')}
               style={styles.logoImage}
               resizeMode="contain"
             />
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   logoImage: {
-    width: 250,
+    width: 300,
     height: 250,
   },
   title: {
