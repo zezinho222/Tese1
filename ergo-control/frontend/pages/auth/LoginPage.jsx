@@ -65,10 +65,11 @@ export default function LoginPage({ navigation }) {
 
           {/* Logo */}
           <View style={styles.logoRow}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>ER</Text>
-            </View>
-            <Text style={styles.logoLabel}>BiRDLAB</Text>
+            <Image
+              source={require('../../assets/logo_aplicacao.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Título */}
@@ -165,31 +166,14 @@ const styles = StyleSheet.create({
   },
   
   logoRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 28,
+    marginTop: -80,
+    marginBottom: 0,
   },
-  logoBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  logoLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text.primary,
-    letterSpacing: 1,
+  logoImage: {
+    width: 250,
+    height: 250,
   },
   title: {
     fontSize: 28,
