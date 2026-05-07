@@ -1,12 +1,15 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../utils/shared-Styles';
 import DataPage from '../pages/DataPage';
 import ModulesPage from '../pages/ModulesPage';
 import ProfilePage from '../pages/ProfilePage';
+import CalibratePage from '../pages/CalibratePage';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 const tabIcon = (focusedName, unfocusedName) => ({ focused, color, size }) => (
   <Ionicons
@@ -16,7 +19,7 @@ const tabIcon = (focusedName, unfocusedName) => ({ focused, color, size }) => (
   />
 );
 
-export default function MainTabs() {
+function Tabs() {
   return (
     <Tab.Navigator
       screenOptions={{
@@ -36,27 +39,18 @@ export default function MainTabs() {
         },
       }}
     >
-      <Tab.Screen
-        name="Início"
-        component={DataPage}
-        options={{
-          tabBarIcon: tabIcon('home', 'home-outline'),
-        }}
-      />
-      <Tab.Screen
-        name="Módulos"
-        component={ModulesPage}
-        options={{
-          tabBarIcon: tabIcon('pulse', 'pulse-outline'),
-        }}
-      />
-      <Tab.Screen
-        name="Perfil"
-        component={ProfilePage}
-        options={{
-          tabBarIcon: tabIcon('person', 'person-outline'),
-        }}
-      />
+      <Tab.Screen name="Início" component={DataPage} options={{ tabBarIcon: tabIcon('home', 'home-outline') }} />
+      <Tab.Screen name="Módulos" component={ModulesPage} options={{ tabBarIcon: tabIcon('pulse', 'pulse-outline') }} />
+      <Tab.Screen name="Perfil" component={ProfilePage} options={{ tabBarIcon: tabIcon('person', 'person-outline') }} />
     </Tab.Navigator>
+  );
+}
+
+export default function MainTabs() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={Tabs} />
+      <Stack.Screen name="Calibrate" component={CalibratePage} />
+    </Stack.Navigator>
   );
 }
