@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
-const SibApiV3Sdk = require('@getbrevo/brevo');
 
 // Função auxiliar para gerar JWT
 const generateToken = (userId) => {
@@ -12,18 +11,24 @@ const generateToken = (userId) => {
 
 // Função auxiliar para enviar email
 const sendEmail = async ({ to, subject, html }) => {
-  const defaultClient = SibApiV3Sdk.ApiClient.instance;
-  const apiKey = defaultClient.authentications['api-key'];
-  apiKey.apiKey = process.env.BREVO_API_KEY;
-
-  const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
-
-  await apiInstance.sendTransacEmail({
-    to: [{ email: to }],
-    sender: { email: 'ergocontroluminho@gmail.com', name: 'ErgoControl' },
-    subject,
-    htmlContent: html,
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': process.env.BREVO_API_KEY,
+    },
+    body: JSON.stringify({
+      sender: { email: 'ergocontroluminho@gmail.com', name: 'ErgoControl' },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
   });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(JSON.stringify(error));
+  }
 };
 
 // ─── POST /api/auth/register ───────────────────────────────────────────────
