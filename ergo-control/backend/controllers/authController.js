@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
+const Brevo = require('@getbrevo/brevo');
 
 // Função auxiliar para gerar JWT
 const generateToken = (userId) => {
@@ -10,17 +11,17 @@ const generateToken = (userId) => {
 };
 
 // Função auxiliar para enviar email
-const { Resend } = require('resend');
-
 const sendEmail = async ({ to, subject, html }) => {
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM,
-    to,
-    subject,
-    html,
-  });
+  const apiInstance = new Brevo.TransactionalEmailsApi();
+  apiInstance.authentications['apiKey'].apiKey = process.env.BREVO_API_KEY;
+
+  const sendSmtpEmail = new Brevo.SendSmtpEmail();
+  sendSmtpEmail.to = [{ email: to }];
+  sendSmtpEmail.sender = { email: 'ergocontroluminho@gmail.com', name: 'ErgoControl' };
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = html;
+
+  await apiInstance.sendTransacEmail(sendSmtpEmail);
 };
 
 // ─── POST /api/auth/register ───────────────────────────────────────────────
