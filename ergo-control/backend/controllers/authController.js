@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
 const User = require('../models/User');
 
 // Função auxiliar para gerar JWT
@@ -11,18 +10,12 @@ const generateToken = (userId) => {
 };
 
 // Função auxiliar para enviar email
-const sendEmail = async ({ to, subject, html }) => {
-  const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: parseInt(process.env.EMAIL_PORT),
-    secure: false,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+const { Resend } = require('resend');
 
-  await transporter.sendMail({
+const sendEmail = async ({ to, subject, html }) => {
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  
+  await resend.emails.send({
     from: process.env.EMAIL_FROM,
     to,
     subject,
