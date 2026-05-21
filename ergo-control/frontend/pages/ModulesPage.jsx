@@ -9,7 +9,7 @@ import {
   ScrollView,
   Modal,
 } from 'react-native';
-import { colors } from '../utils/shared-Styles';
+import { colors, sharedStyles } from '../utils/shared-Styles';
 
 const initialModules = [
   { id: '1', name: 'Sensor 1', subtitle: 'sEMG e IMU', icon: '⚡', battery: 85, connected: true },
@@ -19,8 +19,8 @@ const initialModules = [
 
 const batteryColor = (b) => {
   if (b >= 60) return colors.secondary;
-  if (b >= 30) return '#F59E0B';
-  return '#ef4444';
+  if (b >= 30) return colors.text.yellow;
+  return colors.text.red;
 };
 
 export default function ModulesPage() {
@@ -44,11 +44,11 @@ export default function ModulesPage() {
 
         <View style={styles.moduleCards}>
           {modules.map((m) => (
-            <View key={m.id} style={styles.card}>
+            <View key={m.id} style={[sharedStyles.card, styles.card]}>
 
               <View style={styles.cardHeader}>
-                <View style={styles.iconCircle}>
-                  <Text style={styles.iconText}>{m.icon}</Text>
+                <View style={[sharedStyles.iconCircle, styles.iconCircle]}>
+                  <Text style={sharedStyles.iconText}>{m.icon}</Text>
                 </View>
                 <View style={styles.cardText}>
                   <Text style={styles.cardTitle}>{m.name}</Text>
@@ -80,11 +80,11 @@ export default function ModulesPage() {
 
               {m.connected && (
                 <TouchableOpacity
-                  style={styles.disconnectBtn}
+                  style={[sharedStyles.redButton, styles.disconnectBtn]}
                   onPress={() => setModuleToDisconnect(m.id)}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.disconnectText}>Desligar</Text>
+                  <Text style={sharedStyles.redText}>Desligar</Text>
                 </TouchableOpacity>
               )}
 
@@ -92,13 +92,12 @@ export default function ModulesPage() {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.connectBtn} activeOpacity={0.85}>
-          <Text style={styles.connectText}>+ Conectar Módulo</Text>
+        <TouchableOpacity style={sharedStyles.primaryButton} activeOpacity={0.85}>
+          <Text style={sharedStyles.primaryButtonText}>+ Conectar Módulo</Text>
         </TouchableOpacity>
 
       </ScrollView>
 
-      {/* ── Modal de confirmação ── */}
       <Modal
         visible={moduleToDisconnect !== null}
         transparent
@@ -115,19 +114,19 @@ export default function ModulesPage() {
             <Text style={styles.modalTitle}>Tem a certeza que quer{'\n'}desligar o módulo?</Text>
 
             <TouchableOpacity
-              style={styles.modalConfirmBtn}
+              style={[sharedStyles.primaryButton, sharedStyles.confirmButton]}
               onPress={confirmDisconnect}
               activeOpacity={0.85}
             >
-              <Text style={styles.modalConfirmText}>Sim, tenho!</Text>
+              <Text style={sharedStyles.confirmButtonText}>Sim, tenho!</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.modalCancelBtn}
+              style={[sharedStyles.primaryButton, sharedStyles.cancelButton]}
               onPress={() => setModuleToDisconnect(null)}
               activeOpacity={0.85}
             >
-              <Text style={styles.modalCancelText}>Não, cancelar!</Text>
+              <Text style={sharedStyles.cancelButtonText}>Não, cancelar!</Text>
             </TouchableOpacity>
 
           </TouchableOpacity>
@@ -148,7 +147,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.text?.primary ?? '#111827',
+    color: colors.text.primary,
     textAlign: 'center',
     paddingVertical: 40,
   },
@@ -157,63 +156,54 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
 
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text?.secondary ?? '#6B7280',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-
   moduleCards: {
     gap: 12,
     marginBottom: 28,
   },
+
   card: {
-    backgroundColor: colors.white ?? '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 18,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: colors.border ?? '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
   },
+
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
   },
+
+
   iconCircle: {
     width: 54,
     height: 54,
     borderRadius: 15,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
+    borderColor: colors.border,
+    backgroundColor: colors.cardBg,
   },
-  iconText: {
-    fontSize: 26,
-  },
+
   cardText: {
     flex: 1,
   },
   cardTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: colors.text?.primary ?? '#111827',
+    color: colors.text.primary,
   },
   cardSubtitle: {
     fontSize: 13,
-    color: colors.text?.secondary ?? '#6B7280',
+    color: colors.text.secondary,
     marginTop: 3,
   },
+
+  disconnectBtn: {
+  paddingVertical: 12,
+  borderRadius: 18,
+  marginHorizontal: 0,
+  marginTop: 0,
+},
 
   badge: {
     borderRadius: 8,
@@ -221,10 +211,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   badgeOn: { backgroundColor: '#D1FAE5' },
-  badgeOff: { backgroundColor: colors.border ?? '#E5E7EB' },
+  badgeOff: { backgroundColor: colors.border },
   badgeText: { fontSize: 11, fontWeight: '600' },
   badgeTextOn: { color: colors.secondary },
-  badgeTextOff: { color: colors.text?.secondary ?? '#6B7280' },
+  badgeTextOff: { color: colors.text.secondary },
 
   batteryRow: {
     flexDirection: 'row',
@@ -234,13 +224,13 @@ const styles = StyleSheet.create({
   },
   batteryLabel: {
     fontSize: 13,
-    color: colors.text?.secondary ?? '#6B7280',
+    color: colors.text.secondary,
     width: 50,
   },
   batteryBarWrap: {
     flex: 1,
     height: 8,
-    backgroundColor: colors.border ?? '#E5E7EB',
+    backgroundColor: colors.border,
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -251,38 +241,11 @@ const styles = StyleSheet.create({
   batteryPct: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.text?.primary ?? '#111827',
+    color: colors.text.primary,
     width: 36,
     textAlign: 'right',
   },
 
-  disconnectBtn: {
-    backgroundColor: colors.redBackground ?? '#FEF2F2',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  disconnectText: {
-    color: colors.text?.red ?? '#DC2626',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-
-  connectBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 18,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  connectText: {
-    color: colors.white ?? '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-
-  /* ── Modal overlay ── */
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -291,7 +254,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
 
-  /* ── Modal card ── */
   modalCard: {
     width: '100%',
     backgroundColor: colors.white,
@@ -300,42 +262,13 @@ const styles = StyleSheet.create({
     paddingTop: 28,
     paddingBottom: 24,
     gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: colors.text?.primary ?? '#1F2937',
+    color: colors.text.primary,
     textAlign: 'center',
     lineHeight: 26,
     marginBottom: 4,
-  },
-  modalConfirmBtn: {
-    backgroundColor: colors.redBackground,
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  modalConfirmText: {
-    color: colors.text?.red ?? '#ef4444',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  modalCancelBtn: {
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  modalCancelText: {
-    color: colors.text?.secondary ?? '#6B7280',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

@@ -130,9 +130,12 @@ export const sharedStyles = StyleSheet.create({
     borderRadius: 12,
   },
   redText: {
-    display: 'flex',
-    justifyContent: 'center',
-    color: colors.text.red,
+  display: 'flex',
+  justifyContent: 'center',
+  color: colors.text.red,
+  fontWeight: '700',        
+  textAlign: 'center',      
+  fontSize: 14,             
   },
   closeButton: {
     width: 32,

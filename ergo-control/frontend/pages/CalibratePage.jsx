@@ -41,7 +41,6 @@ export default function CalibratePage({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
-        {/* Header */}
         <View style={styles.header}>
         <TouchableOpacity
             style={sharedStyles.backButton}
@@ -94,7 +93,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -125,7 +123,6 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
 
-  /* ── Section title ── */
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
@@ -135,7 +132,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  /* ── Cards ── */
   moduleCards: {
     gap: 12,
   },
@@ -181,7 +177,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  /* ── Badge OK ── */
   okBadge: {
     backgroundColor: '#D1FAE5',
     borderRadius: 8,
@@ -194,7 +189,6 @@ const styles = StyleSheet.create({
     color: colors.secondary,
   },
 
-  /* ── Botão Calibrar ── */
   calibrateBtn: {
     backgroundColor: colors.yellowBackground ?? '#FFF3CD',
     borderRadius: 8,

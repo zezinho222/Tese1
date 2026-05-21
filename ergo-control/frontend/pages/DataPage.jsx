@@ -6,12 +6,9 @@ import {
   StyleSheet,
   SafeAreaView,
   StatusBar,
-  Dimensions,
 } from 'react-native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
-
-const { width, height } = Dimensions.get('window');
 
 const cards = [
   {
@@ -20,9 +17,9 @@ const cards = [
     title: 'Calibrar',
     subtitle: 'Ajustar módulos sEMG e IMU',
     route: 'Calibrate',
-    color: '#FFF3CD',
-    borderColor: '#F59E0B',
-    accentColor: '#F59E0B',
+    color: colors.yellowBackground,
+    borderColor: colors.text.yellow,
+    accentColor: colors.text.yellow,
   },
   {
     id: 'monitor',
@@ -31,8 +28,8 @@ const cards = [
     subtitle: 'Ver dados em tempo real',
     route: 'Monitoring',
     color: '#DBEAFE',
-    borderColor: '#3B82F6',
-    accentColor: '#3B82F6',
+    borderColor: colors.primary,
+    accentColor: colors.primary,
   },
   {
     id: 'history',
@@ -41,8 +38,8 @@ const cards = [
     subtitle: 'Ver sessões anteriores',
     route: 'History',
     color: '#D1FAE5',
-    borderColor: '#10B981',
-    accentColor: '#10B981',
+    borderColor: colors.secondary,
+    accentColor: colors.secondary,
   },
 ];
 
@@ -59,7 +56,6 @@ export default function DataPage({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
-      {/* Header — ocupa ~18% do ecrã */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Olá 👋,</Text>
@@ -67,16 +63,14 @@ export default function DataPage({ navigation }) {
         </View>
       </View>
 
-      {/* Cards — ocupam ~50% do ecrã */}
       <View style={styles.cardsSection}>
         {cards.map((card) => (
           <TouchableOpacity
             key={card.id}
-            style={styles.card}
+            style={[sharedStyles.card, styles.card]}
             onPress={() => navigation.navigate(card.route)}
             activeOpacity={0.82}
           >
-            {/* Barra de cor lateral */}
             <View style={[styles.cardAccent, { backgroundColor: card.accentColor }]} />
 
             <View style={[styles.iconCircle, { backgroundColor: card.color, borderColor: card.borderColor }]}>
@@ -94,18 +88,18 @@ export default function DataPage({ navigation }) {
         ))}
       </View>
 
-      {/* Resumo — ocupa ~25% do ecrã */}
       <View style={styles.resumoSection}>
         <Text style={styles.sectionTitle}>Resumo de Hoje</Text>
         <View style={styles.resumo}>
           {resumo.map((item) => (
-            <View key={item.label} style={styles.resumoItem}>
+            <View key={item.label} style={[sharedStyles.card, styles.resumoItem]}>
               <Text style={styles.resumoValue}>{item.value}</Text>
               <Text style={styles.resumoLabel}>{item.label}</Text>
             </View>
           ))}
         </View>
       </View>
+
     </SafeAreaView>
   );
 }
@@ -117,7 +111,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  /* ── Header ── */
   header: {
     flex: 10,
     flexDirection: 'row',
@@ -127,54 +120,32 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: 15,
-    color: colors.text?.secondary ?? '#6B7280',
+    color: colors.text.secondary,
     fontWeight: '500',
   },
   name: {
     fontSize: 28,
     fontWeight: '800',
-    color: colors.text?.primary ?? '#111827',
+    color: colors.text.primary,
     marginTop: 2,
     letterSpacing: -0.5,
   },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#E0E7FF',
-    borderWidth: 2,
-    borderColor: '#6366F1',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#4F46E5',
-  },
 
-  /* ── Cards ── */
   cardsSection: {
     flex: 20,
     justifyContent: 'space-evenly',
     marginTop: -80,
   },
   card: {
+    backgroundColor: colors.white,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white ?? '#FFFFFF',
     borderRadius: 18,
     paddingVertical: 18,
     paddingRight: 16,
     paddingLeft: 0,
     borderWidth: 1,
-    borderColor: colors.border ?? '#E5E7EB',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
   },
   cardAccent: {
     width: 5,
@@ -201,21 +172,19 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: colors.text?.primary ?? '#111827',
+    color: colors.text.primary,
   },
   cardSubtitle: {
     fontSize: 13,
-    color: colors.text?.secondary ?? '#6B7280',
+    color: colors.text.secondary,
     marginTop: 3,
   },
   cardArrow: {
     fontSize: 36,
-    fontWeight: '300',
     lineHeight: 36,
     marginRight: 4,
   },
 
-  /* ── Resumo ── */
   resumoSection: {
     flex: 5,
     justifyContent: 'center',
@@ -224,7 +193,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.text?.secondary ?? '#6B7280',
+    color: colors.text.secondary,
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -236,29 +205,23 @@ const styles = StyleSheet.create({
   },
   resumoItem: {
     flex: 1,
-    backgroundColor: colors.white ?? '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 12,
     paddingVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border ?? '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
     gap: 2,
   },
   resumoValue: {
     fontSize: 20,
     fontWeight: '800',
-    color: colors.text?.primary ?? '#111827',
+    color: colors.text.primary,
     letterSpacing: -0.5,
   },
   resumoLabel: {
     fontSize: 11,
-    color: colors.text?.secondary ?? '#6B7280',
+    color: colors.text.secondary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,

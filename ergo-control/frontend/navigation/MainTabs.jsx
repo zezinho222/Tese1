@@ -7,6 +7,8 @@ import DataPage from '../pages/DataPage';
 import ModulesPage from '../pages/ModulesPage';
 import ProfilePage from '../pages/ProfilePage';
 import CalibratePage from '../pages/CalibratePage';
+import MonitoringPage from '../pages/MonitoringPage';
+import HistoryPage  from '../pages/HistoryPage';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -51,6 +53,8 @@ export default function MainTabs() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={Tabs} />
       <Stack.Screen name="Calibrate" component={CalibratePage} />
+      <Stack.Screen name="Monitoring" component={MonitoringPage} />
+      <Stack.Screen name="History" component={HistoryPage} />
     </Stack.Navigator>
   );
 }
