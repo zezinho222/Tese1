@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 
@@ -14,6 +15,9 @@ connectDB();
 // Middlewares globais
 app.use(cors());
 app.use(express.json());
+
+// Servir assets do frontend
+app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
 
 // Página web de redefinição de password (link do email)
 app.get('/reset-password/:token', (req, res) => {
@@ -70,25 +74,17 @@ app.get('/reset-password/:token', (req, res) => {
  
         .logo-row {
           display: flex;
+          flex-direction: column;
           align-items: center;
-          justify-content: center;
           gap: 8px;
           margin-bottom: 24px;
         }
-        .logo-badge {
-          width: 32px;
-          height: 32px;
-          border-radius: var(--radius-sm);
-          background: var(--primary);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--white);
-          font-size: 12px;
-          font-weight: 700;
+        .logo-row img {
+          height: 64px;
+          width: auto;
         }
         .logo-label {
-          font-size: 16px;
+          font-size: 18px;
           font-weight: 700;
           color: var(--text-primary);
           letter-spacing: 1px;
@@ -198,12 +194,12 @@ app.get('/reset-password/:token', (req, res) => {
  
         <!-- Logo -->
         <div class="logo-row">
-          <div class="logo-badge">ER</div>
+          <img src="/assets/ErgoControl.png" alt="ErgoControl" />
           <span class="logo-label">ErgoControl</span>
         </div>
  
         <h1>🔒 Redefinir Password</h1>
-        <p class="subtitle">Introduz a tua nova password abaixo.<br>Deve ter pelo menos 8 caracteres.</p>
+        <p class="subtitle">Introduza a sua nova password abaixo.<br>Deve ter pelo menos 8 caracteres.</p>
  
         <label for="password">Nova password</label>
         <input type="password" id="password" placeholder="Nova password" />
