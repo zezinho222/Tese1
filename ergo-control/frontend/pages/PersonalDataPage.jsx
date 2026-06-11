@@ -431,7 +431,7 @@ export default function PersonalDataPage({ navigation }) {
                   ]}
                   value={newEmail}
                   onChangeText={(t) => { setNewEmail(t); setEmailError(''); }}
-                  placeholder="novo@email.com"
+                  placeholder="email@exemplo.com"
                   placeholderTextColor={colors.text.placeholder}
                   keyboardType="email-address"
                   autoCapitalize="none"
