@@ -366,17 +366,3 @@ function buildHtmlPage({ title, subtitle, field1, field2, btnText, script }) {
     </html>
   `;
 }
-
-// Rotas
-app.use('/api/auth', authRoutes);
-
-// Rota de teste
-app.get('/', (req, res) => {
-  res.json({ message: 'ErgoControl API a funcionar!' });
-});
-
-// Iniciar servidor
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor a correr na porta ${PORT}`);
-});
