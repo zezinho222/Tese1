@@ -56,7 +56,7 @@ export default function HistoryPage({ navigation }) {
 
             <TouchableOpacity
               style={styles.detailsBtn}
-              onPress={() => navigation.navigate('SessionDetail', { sessionId: session.id })}
+              onPress={() => navigation.navigate('HistoryDetail', { sessionId: session.id })}
               activeOpacity={0.7}
             >
               <Text style={styles.detailsBtnText}>Ver detalhes &gt;</Text>
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
 
   sessionCard: {
     backgroundColor: colors.white,
-    padding: 16,
+    padding: 12,
     borderWidth: 1,
     gap: 10,
   },

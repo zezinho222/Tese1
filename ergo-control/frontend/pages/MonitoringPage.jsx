@@ -185,7 +185,7 @@ export default function MonitoringPage({ navigation }) {
               </View>
 
               <View style={styles.emsToggleRow}>
-                <Text style={styles.emsLabel}>Activar EMS</Text>
+                <Text style={styles.emsLabel}>Ativar EMS</Text>
                 <Switch
                   value={emsActive}
                   onValueChange={setEmsActive}

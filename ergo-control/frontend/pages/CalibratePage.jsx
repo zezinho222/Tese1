@@ -34,33 +34,36 @@ const modules = [
   },
 ];
 
-const ORANGE = '#F59E0B';
-
 export default function CalibratePage({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
-        <View style={styles.header}>
+      <View style={styles.header}>
         <TouchableOpacity
-            style={sharedStyles.backButton}
-            onPress={() => navigation.goBack()}
+          style={sharedStyles.backButton}
+          onPress={() => navigation.goBack()}
         >
-            <Text style={styles.backArrow}>‹</Text>
+          <Text style={styles.backArrow}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.pageTitle}>Calibrar</Text>
-        <View style={styles.backBtn} />
-        </View>
+        <View style={styles.headerSpacer} />
+      </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.sectionTitle}>Módulos</Text>
 
-        <View style={styles.moduleCards}>
+        <View style={styles.settingsGroup}>
           {modules.map((m) => (
-            <View key={m.id} style={styles.card}>
-              <View style={styles.iconCircle}>
-                <Text style={styles.iconText}>{m.icon}</Text>
+            <View
+              key={m.id}
+              style={[sharedStyles.card, styles.settingsCard]}
+            >
+              <View style={[sharedStyles.iconCircle, styles.iconCircle]}>
+                <Text style={sharedStyles.iconText}>{m.icon}</Text>
               </View>
 
               <View style={styles.cardText}>
@@ -80,7 +83,6 @@ export default function CalibratePage({ navigation }) {
             </View>
           ))}
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -93,75 +95,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
+  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    paddingTop: 4,
+    paddingBottom: 0,
   },
-  backBtn: {
-  padding: 8,
-  width: 50,           
-  height: 50,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
   backArrow: {
     fontSize: 32,
-    color: colors.text?.primary ?? '#111827',
+    color: colors.text.primary,
     fontWeight: '600',
-    lineHeight: 32, 
+    lineHeight: 32,
   },
   pageTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.text?.primary ?? '#111827',
+    color: colors.text.primary,
     textAlign: 'center',
   },
+  headerSpacer: {
+    width: 50,
+  },
 
+  /* ── Scroll ── */
   scroll: {
     paddingBottom: 32,
   },
 
+  /* ── Section label ── */
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.text?.secondary ?? '#6B7280',
+    color: colors.text.secondary,
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
 
-  moduleCards: {
+  /* ── Cards — identical to ProfilePage settingsGroup / settingsCard ── */
+  settingsGroup: {
     gap: 12,
   },
-  card: {
+  settingsCard: {
+    backgroundColor: colors.white,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.white ?? '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: colors.border ?? '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
+    paddingVertical: 18,
+    paddingRight: 16,
+    borderWidth: 1,
   },
   iconCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 15,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginRight: 14,
-  },
-  iconText: {
-    fontSize: 26,
+    marginLeft: 10,
   },
   cardText: {
     flex: 1,
@@ -169,14 +156,15 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: colors.text?.primary ?? '#111827',
+    color: colors.text.primary,
   },
   cardSubtitle: {
     fontSize: 13,
-    color: colors.text?.secondary ?? '#6B7280',
+    color: colors.text.secondary,
     marginTop: 3,
   },
 
+  /* ── Calibrated badge ── */
   okBadge: {
     backgroundColor: '#D1FAE5',
     borderRadius: 8,
@@ -189,17 +177,18 @@ const styles = StyleSheet.create({
     color: colors.secondary,
   },
 
+  /* ── Calibrar button ── */
   calibrateBtn: {
-    backgroundColor: colors.yellowBackground ?? '#FFF3CD',
+    backgroundColor: colors.yellowBackground,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: ORANGE,
+    borderColor: colors.text.yellow,
   },
   calibrateBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: ORANGE,
+    color: colors.text.yellow,
   },
 });

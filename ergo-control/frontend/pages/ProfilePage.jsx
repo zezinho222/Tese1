@@ -23,15 +23,17 @@ const settings = [
     icon: '👤',
     title: 'Dados Pessoais',
     subtitle: 'Nome, email, password',
+    route: 'PersonalData',
   },
   {
     icon: '🔔',
     title: 'Notificações',
     subtitle: 'Notificações, vibrações',
+    route: 'Notifications',
   },
 ];
 
-export default function ProfilePage() {
+export default function ProfilePage({ navigation }) {
   const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -70,6 +72,7 @@ export default function ProfilePage() {
               key={s.title}
               style={[sharedStyles.card, styles.settingsCard]}
               activeOpacity={0.82}
+              onPress={() => navigation.navigate(s.route)}
             >
               <View style={[sharedStyles.iconCircle, styles.iconCircle]}>
                 <Text style={sharedStyles.iconText}>{s.icon}</Text>

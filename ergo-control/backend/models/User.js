@@ -25,13 +25,36 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'A password é obrigatória'],
       minlength: [8, 'A password deve ter pelo menos 8 caracteres'],
-      select: false, // nunca retorna a password em queries
+      select: false,
     },
+    // Reset de password (forgot password - sem autenticação)
     passwordResetToken: {
       type: String,
       default: null,
     },
     passwordResetExpires: {
+      type: Date,
+      default: null,
+    },
+    // Alteração de email (requer autenticação + verificação por email)
+    emailChangeToken: {
+      type: String,
+      default: null,
+    },
+    emailChangePending: {
+      type: String,
+      default: null,
+    },
+    emailChangeExpires: {
+      type: Date,
+      default: null,
+    },
+    // Alteração de password (requer autenticação + verificação por email)
+    passwordChangeToken: {
+      type: String,
+      default: null,
+    },
+    passwordChangeExpires: {
       type: Date,
       default: null,
     },
@@ -41,15 +64,13 @@ const userSchema = new mongoose.Schema(
     },
   },
   {
-    timestamps: true, // cria createdAt e updatedAt automaticamente
+    timestamps: true,
   }
 );
 
 // Hash da password antes de guardar
 userSchema.pre('save', async function (next) {
-  // só faz hash se a password foi modificada
   if (!this.isModified('password')) return next();
-
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
   next();
