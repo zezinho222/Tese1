@@ -406,7 +406,7 @@ export default function PersonalDataPage({ navigation }) {
                 <Text style={styles.modalTitle}>Email enviado!</Text>
                 <Text style={styles.modalSubtitle}>
                   Enviámos um link de confirmação para:{'\n'}
-                  <Text style={styles.modalHighlight}>{newEmail}</Text>
+                  <Text style={styles.modalHighlight}>{email}</Text>
                 </Text>
                 <TouchableOpacity
                   style={[sharedStyles.primaryButton, styles.modalBtn]}
