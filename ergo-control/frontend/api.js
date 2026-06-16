@@ -63,4 +63,22 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({}),
     }),
+
+  // ── Modules ──────────────────────────────────────────────────────────
+  getModules: async (token) =>
+    authFetch('/api/modules', token),
+
+  scanModules: async (token, type) =>
+    authFetch(`/api/modules/scan?type=${encodeURIComponent(type)}`, token),
+
+  addModule: async (token, { name, type, ip, port, battery }) =>
+    authFetch('/api/modules', token, {
+      method: 'POST',
+      body: JSON.stringify({ name, type, ip, port, battery }),
+    }),
+
+  removeModule: async (token, moduleId) =>
+    authFetch(`/api/modules/${moduleId}`, token, {
+      method: 'DELETE',
+    }),
 };

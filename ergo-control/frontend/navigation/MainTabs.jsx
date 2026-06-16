@@ -12,6 +12,8 @@ import HistoryPage  from '../pages/HistoryPage';
 import HistoryDetailPage from '../pages/HistoryDetailPage';
 import PersonalDataPage from '../pages/PersonalDataPage';
 import NotificationsPage from '../pages/NotificationsPage';
+import ConnectModulePage from '../pages/ConnectModulePage';
+import ScanModulesPage   from '../pages/ScanModulesPage';
 
 
 const Tab = createBottomTabNavigator();
@@ -62,6 +64,8 @@ export default function MainTabs() {
       <Stack.Screen name="HistoryDetail" component={HistoryDetailPage} />
       <Stack.Screen name="PersonalData" component={PersonalDataPage} />
       <Stack.Screen name="Notifications" component={NotificationsPage} />
+      <Stack.Screen name="ConnectModule" component={ConnectModulePage} />
+      <Stack.Screen name="ScanModules"   component={ScanModulesPage} />
     </Stack.Navigator>
   );
 }
