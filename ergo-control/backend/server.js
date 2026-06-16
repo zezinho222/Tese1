@@ -5,6 +5,7 @@ const path = require('path');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const moduleRoutes = require('./routes/moduleRoutes');
 
 dotenv.config();
 
@@ -211,6 +212,7 @@ app.get('/verify-password-change/:token', (req, res) => {
 // ─── Rotas ────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/modules', moduleRoutes);
 
 // Rota de teste
 app.get('/', (req, res) => {
