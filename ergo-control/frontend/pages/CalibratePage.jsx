@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,34 +7,61 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
+import { useAuth } from '../context/AuthContext';
+import { api } from '../api';
 
-const modules = [
-  {
-    id: 'semg',
-    icon: '⚡',
-    title: 'sEMG',
-    subtitle: 'Eletromiografia de Superfície',
-    calibrated: true,
-  },
-  {
-    id: 'imu',
-    icon: '🧭',
-    title: 'IMU',
-    subtitle: 'Unidade de Medição Inercial',
-    calibrated: false,
-  },
-  {
-    id: 'ems',
-    icon: '💪',
-    title: 'EMS',
-    subtitle: 'Eletroestimulação Muscular',
-    calibrated: false,
-  },
-];
+const TYPE_META = {
+  sEMG: { icon: '⚡', subtitle: 'Eletromiografia de Superfície' },
+  IMU:  { icon: '🧭', subtitle: 'Unidade de Medição Inercial' },
+  EMS:  { icon: '💪', subtitle: 'Eletroestimulação Muscular' },
+};
+
+// Estado de calibração — estático por agora, por tipo de módulo
+const STATIC_CALIBRATED = {
+  sEMG: true,
+  IMU: false,
+  EMS: false,
+};
 
 export default function CalibratePage({ navigation }) {
+  const { token } = useAuth();
+
+  const [modules, setModules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadModules = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError('');
+    try {
+      const data = await api.getModules(token);
+      if (data.success) {
+        setModules(data.modules || []);
+      } else {
+        setError(data.message || 'Erro ao carregar módulos.');
+      }
+    } catch {
+      setError('Sem ligação ao servidor.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Recarrega sempre que a página ganha foco
+  useFocusEffect(
+    useCallback(() => {
+      loadModules();
+    }, [])
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -50,40 +77,74 @@ export default function CalibratePage({ navigation }) {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.sectionTitle}>Módulos</Text>
-
-        <View style={styles.settingsGroup}>
-          {modules.map((m) => (
-            <View
-              key={m.id}
-              style={[sharedStyles.card, styles.settingsCard]}
-            >
-              <View style={[sharedStyles.iconCircle, styles.iconCircle]}>
-                <Text style={sharedStyles.iconText}>{m.icon}</Text>
-              </View>
-
-              <View style={styles.cardText}>
-                <Text style={styles.cardTitle}>{m.title}</Text>
-                <Text style={styles.cardSubtitle}>{m.subtitle}</Text>
-              </View>
-
-              {m.calibrated ? (
-                <View style={styles.okBadge}>
-                  <Text style={styles.okBadgeText}>OK</Text>
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.calibrateBtn} activeOpacity={0.85}>
-                  <Text style={styles.calibrateBtnText}>Calibrar</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadModules(true)}
+              tintColor={colors.primary}
+            />
+          }
+        >
+          <Text style={styles.sectionTitle}>Módulos</Text>
+
+          {error !== '' && (
+            <View style={[sharedStyles.helperBox, styles.errorBox]}>
+              <Text style={[sharedStyles.helperText, styles.errorText]}>{error}</Text>
+            </View>
+          )}
+
+          {modules.length === 0 && error === '' ? (
+            <View style={[sharedStyles.card, styles.emptyCard]}>
+              <Text style={styles.emptyIcon}>🔌</Text>
+              <Text style={styles.emptyTitle}>Sem módulos ligados</Text>
+              <Text style={styles.emptySubtitle}>
+                Conecta um módulo na página "Módulos" para o poder calibrar aqui.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.settingsGroup}>
+              {modules.map((m) => {
+                const meta = TYPE_META[m.type] || TYPE_META.sEMG;
+                const calibrated = STATIC_CALIBRATED[m.type] ?? false;
+
+                return (
+                  <View
+                    key={m._id}
+                    style={[sharedStyles.card, styles.settingsCard]}
+                  >
+                    <View style={[sharedStyles.iconCircle, styles.iconCircle]}>
+                      <Text style={sharedStyles.iconText}>{meta.icon}</Text>
+                    </View>
+
+                    <View style={styles.cardText}>
+                      <Text style={styles.cardTitle}>{m.name}</Text>
+                      <Text style={styles.cardSubtitle}>{meta.subtitle}</Text>
+                    </View>
+
+                    {calibrated ? (
+                      <View style={styles.okBadge}>
+                        <Text style={styles.okBadgeText}>OK</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity style={styles.calibrateBtn} activeOpacity={0.85}>
+                        <Text style={styles.calibrateBtnText}>Calibrar</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -119,9 +180,17 @@ const styles = StyleSheet.create({
     width: 50,
   },
 
+  /* ── Loading ── */
+  loadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
   /* ── Scroll ── */
   scroll: {
     paddingBottom: 32,
+    gap: 14,
   },
 
   /* ── Section label ── */
@@ -134,7 +203,43 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  /* ── Cards — identical to ProfilePage settingsGroup / settingsCard ── */
+  /* ── Error ── */
+  errorBox: {
+    backgroundColor: colors.redBackground,
+    borderColor: colors.text.red + '30',
+  },
+  errorText: {
+    color: colors.text.red,
+    fontStyle: 'normal',
+    textAlign: 'center',
+  },
+
+  /* ── Empty state ── */
+  emptyCard: {
+    backgroundColor: colors.white,
+    padding: 32,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+  },
+  emptyIcon: {
+    fontSize: 40,
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  /* ── Cards ── */
   settingsGroup: {
     gap: 12,
   },
