@@ -25,6 +25,7 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.0"
+    "@babel/core": "^7.25.0",
+    "@react-native-community/cli": "^20.2.0"
   }
 }
