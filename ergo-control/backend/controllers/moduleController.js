@@ -1,7 +1,10 @@
 const Module = require('../models/Module');
 
-// ─── GET /api/modules ─────────────────────────────────────────────────────
-// Lista todos os módulos do utilizador autenticado
+const MODULE_IP   = '192.168.4.1';
+const MODULE_PORT = 80;
+const SCAN_TIMEOUT = 5000; // ms
+
+// ─── GET /api/modules ─────────────────────────────────────────────────────────
 const getModules = async (req, res) => {
   try {
     const modules = await Module.find({ user: req.user._id }).sort({ createdAt: -1 });
@@ -12,49 +15,64 @@ const getModules = async (req, res) => {
   }
 };
 
-// ─── POST /api/modules ────────────────────────────────────────────────────
-// Guarda um módulo recém-conectado na base de dados
+// ─── POST /api/modules ────────────────────────────────────────────────────────
 const addModule = async (req, res) => {
   try {
-    const { name, type, ip, port, battery } = req.body;
+    const {
+      name,
+      ip,
+      port,
+      battery,
+      sensorSelection,
+      offsetValue,
+      offsetLabel,
+      freqHz,
+      freqValue,
+    } = req.body;
 
-    if (!name || !type || !ip) {
+    if (!name || !ip) {
+      return res.status(400).json({ success: false, message: 'Nome e IP são obrigatórios.' });
+    }
+
+    if (sensorSelection && !['EMG', 'IMU', 'DUAL'].includes(sensorSelection)) {
       return res.status(400).json({
         success: false,
-        message: 'Nome, tipo e IP são obrigatórios.',
+        message: 'sensorSelection inválido. Use: EMG, IMU ou DUAL.',
       });
     }
 
-    if (!['sEMG', 'IMU', 'EMS'].includes(type)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tipo de módulo inválido. Use: sEMG, IMU ou EMS.',
-      });
-    }
-
-    // Verificar se já existe um módulo com o mesmo IP para este utilizador
+    // Verificar se já existe módulo com este IP para o utilizador
     const existing = await Module.findOne({ user: req.user._id, ip });
+
     if (existing) {
-      // Atualiza os dados em vez de duplicar
-      existing.name = name;
-      existing.type = type;
-      existing.port = port || 80;
-      existing.battery = battery ?? null;
-      existing.connected = true;
-      existing.lastSeen = Date.now();
+      // Atualiza em vez de duplicar
+      existing.name            = name;
+      existing.port            = port || MODULE_PORT;
+      existing.battery         = battery ?? null;
+      existing.sensorSelection = sensorSelection || existing.sensorSelection;
+      existing.offsetValue     = offsetValue     ?? existing.offsetValue;
+      existing.offsetLabel     = offsetLabel     || existing.offsetLabel;
+      existing.freqHz          = freqHz          ?? existing.freqHz;
+      existing.freqValue       = freqValue       ?? existing.freqValue;
+      existing.connected       = true;
+      existing.lastSeen        = Date.now();
       await existing.save();
       return res.status(200).json({ success: true, module: existing });
     }
 
     const module = await Module.create({
-      user: req.user._id,
+      user:            req.user._id,
       name,
-      type,
       ip,
-      port: port || 80,
-      battery: battery ?? null,
-      connected: true,
-      lastSeen: Date.now(),
+      port:            port || MODULE_PORT,
+      battery:         battery ?? null,
+      sensorSelection: sensorSelection || null,
+      offsetValue:     offsetValue     ?? null,
+      offsetLabel:     offsetLabel     || null,
+      freqHz:          freqHz          ?? null,
+      freqValue:       freqValue       ?? null,
+      connected:       true,
+      lastSeen:        Date.now(),
     });
 
     res.status(201).json({ success: true, module });
@@ -64,16 +82,13 @@ const addModule = async (req, res) => {
   }
 };
 
-// ─── DELETE /api/modules/:id ──────────────────────────────────────────────
-// Remove um módulo (desligar)
+// ─── DELETE /api/modules/:id ──────────────────────────────────────────────────
 const removeModule = async (req, res) => {
   try {
     const module = await Module.findOne({ _id: req.params.id, user: req.user._id });
-
     if (!module) {
       return res.status(404).json({ success: false, message: 'Módulo não encontrado.' });
     }
-
     await module.deleteOne();
     res.status(200).json({ success: true, message: 'Módulo removido com sucesso.' });
   } catch (error) {
@@ -82,52 +97,52 @@ const removeModule = async (req, res) => {
   }
 };
 
-// ─── GET /api/modules/scan?type=sEMG ─────────────────────────────────────
-// Simula a descoberta de módulos na rede Wi-Fi local via HTTP polling
-// Em produção, os módulos ESP32 respondem em http://<ip>/info
+// ─── GET /api/modules/scan ────────────────────────────────────────────────────
+// O scan real é feito diretamente pelo telemóvel (moduleService.isModuleReachable).
+// Este endpoint devolve o IP fixo do módulo para o backend ter registo.
 const scanModules = async (req, res) => {
   try {
-    const { type } = req.query;
-
-    if (!type || !['sEMG', 'IMU', 'EMS'].includes(type)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Parâmetro "type" obrigatório: sEMG, IMU ou EMS.',
-      });
-    }
-
-    // Busca os IPs já guardados para este utilizador (para marcar como "já ligado")
     const existingModules = await Module.find({ user: req.user._id });
-    const existingIPs = existingModules.map((m) => m.ip);
+    const existingIPs     = existingModules.map((m) => m.ip);
 
-    // ── Dispositivos simulados por tipo ──────────────────────────────────
-    // Em produção, aqui farias broadcast UDP ou varredura da subnet para
-    // encontrar ESPs que respondem em /info. Como ainda é desenvolvimento,
-    // devolvemos dispositivos mock realistas.
-    const mockDevices = {
-      sEMG: [
-        { name: 'sEMG-Module-01', ip: '192.168.1.101', port: 80, battery: 85, type: 'sEMG' },
-        { name: 'sEMG-Module-02', ip: '192.168.1.102', port: 80, battery: 62, type: 'sEMG' },
-      ],
-      IMU: [
-        { name: 'IMU-Module-01', ip: '192.168.1.111', port: 80, battery: 91, type: 'IMU' },
-      ],
-      EMS: [
-        { name: 'EMS-Module-01', ip: '192.168.1.121', port: 80, battery: 45, type: 'EMS' },
-        { name: 'EMS-Module-02', ip: '192.168.1.122', port: 80, battery: 78, type: 'EMS' },
-      ],
+    const device = {
+      name:             'ErgoControl',
+      ip:               MODULE_IP,
+      port:             MODULE_PORT,
+      battery:          null,
+      alreadyConnected: existingIPs.includes(MODULE_IP),
     };
 
-    const found = (mockDevices[type] || []).map((device) => ({
-      ...device,
-      alreadyConnected: existingIPs.includes(device.ip),
-    }));
-
-    res.status(200).json({ success: true, devices: found });
+    res.status(200).json({ success: true, devices: [device] });
   } catch (error) {
     console.error('Erro ao procurar módulos:', error);
     res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
   }
 };
 
-module.exports = { getModules, addModule, removeModule, scanModules };
+// ─── PATCH /api/modules/:id/calibration ──────────────────────────────────────
+const updateCalibration = async (req, res) => {
+  try {
+    const module = await Module.findOne({ _id: req.params.id, user: req.user._id });
+    if (!module) {
+      return res.status(404).json({ success: false, message: 'Módulo não encontrado.' });
+    }
+
+    const { sensor, mvc } = req.body; // sensor: 'sEMG' | 'IMU'
+
+    if (sensor === 'sEMG') {
+      module.calibrated.sEMG = true;
+      if (mvc != null) module.mvc = mvc;
+    } else if (sensor === 'IMU') {
+      module.calibrated.IMU = true;
+    }
+
+    await module.save();
+    res.status(200).json({ success: true, module });
+  } catch (error) {
+    console.error('Erro ao guardar calibração:', error);
+    res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+  }
+};
+
+module.exports = { getModules, addModule, removeModule, scanModules, updateCalibration };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,710 +7,580 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
-  Switch,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
+import { useAuth } from '../context/AuthContext';
+import { api } from '../api';
+import moduleService from '../moduleService';
 
-const moduleOptions = [
-  { id: 'semg', title: 'sEMG', subtitle: 'Atividade Muscular' },
-  { id: 'imu', title: 'IMU', subtitle: 'Dados de movimento' },
-];
+const STORAGE_KEY    = '@ergocontrol/connected_module';
+const DISPLAY_POINTS = 20;  // quantos pontos mostrar no gráfico
+const REFRESH_MS     = 300; // intervalo de atualização do gráfico
+
+const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
 
 export default function MonitoringPage({ navigation }) {
-  const [isMonitoring, setIsMonitoring] = useState(false);
-  const [emsActive, setEmsActive] = useState(false);
-  const [intensity, setIntensity] = useState(5);
-  const [frequency, setFrequency] = useState(50);
+  const { token } = useAuth();
 
-  const [showModuleModal, setShowModuleModal] = useState(false);
-  const [showErrorModal, setShowErrorModal] = useState(false);
-  const [showStopModal, setShowStopModal] = useState(false);
+  const [localModule,     setLocalModule]     = useState(null);
+  const [isMonitoring,    setIsMonitoring]    = useState(false);
+  const [showStopModal,   setShowStopModal]   = useState(false);
+  const [showNoModModal,  setShowNoModModal]  = useState(false);
+  const [showNoCal,       setShowNoCal]       = useState(false);
+  const [saving,          setSaving]          = useState(false);
+  const [error,           setError]           = useState('');
 
-  const [selectedModules, setSelectedModules] = useState({ semg: false, imu: false });
-  const [noModuleError, setNoModuleError] = useState(false);
+  // Dados para o gráfico
+  const [emgPoints,   setEmgPoints]   = useState([]);
+  const [imuPoints,   setImuPoints]   = useState([]);
+  const [elapsedSec,  setElapsedSec]  = useState(0);
+  const [alertCount,  setAlertCount]  = useState(0);
 
-  const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
+  const sessionIdRef    = useRef(null);  // ID da sessão no backend
+  const startTimeRef    = useRef(null);
+  const elapsedRef      = useRef(null);
+  const graphIntervalRef = useRef(null);
+  const alertCountRef   = useRef(0);
 
-  const toggleModule = (id) => {
-    setSelectedModules(prev => ({ ...prev, [id]: !prev[id] }));
-    setNoModuleError(false);
+  // ── Carregar módulo ────────────────────────────────────────────────────────
+  const loadModule = async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      setLocalModule(raw ? JSON.parse(raw) : null);
+    } catch {}
   };
 
-  const handleStartPress = () => {
-    if (isMonitoring) {
-      setShowStopModal(true);
-    } else {
-      setSelectedModules({ semg: false, imu: false });
-      setNoModuleError(false);
-      setShowModuleModal(true);
-    }
+  useFocusEffect(useCallback(() => { loadModule(); }, []));
+
+  // ── Subscrição aos dados WebSocket ─────────────────────────────────────────
+  useEffect(() => {
+    moduleService.addListener('monitoring', (_, parsed) => {
+      // Os buffers são geridos internamente pelo moduleService;
+      // aqui apenas disparamos uma flag para o intervalo de atualização do gráfico
+    });
+    return () => moduleService.removeListener('monitoring');
+  }, []);
+
+  // ── Atualização periódica do gráfico ───────────────────────────────────────
+  const startGraphRefresh = () => {
+    graphIntervalRef.current = setInterval(() => {
+      const { emgBuffer, imuBuffer } = moduleService.getBuffers();
+      const emgSlice = emgBuffer.slice(-DISPLAY_POINTS);
+      const imuSlice = imuBuffer.slice(-DISPLAY_POINTS);
+      setEmgPoints([...emgSlice]);
+      setImuPoints([...imuSlice]);
+    }, REFRESH_MS);
   };
 
-  const handleSeguinte = () => {
-    const nenhumSelecionado = !selectedModules.semg && !selectedModules.imu;
-    if (nenhumSelecionado) {
-      setNoModuleError(true);
+  const stopGraphRefresh = () => clearInterval(graphIntervalRef.current);
+
+  // ── Temporizador de sessão ─────────────────────────────────────────────────
+  const startTimer = () => {
+    setElapsedSec(0);
+    elapsedRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000);
+  };
+
+  const stopTimer = () => {
+    clearInterval(elapsedRef.current);
+  };
+
+  const formatElapsed = (sec) => {
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  // ── Iniciar monitorização ──────────────────────────────────────────────────
+  const handleStartMonitoring = async () => {
+    if (!localModule) {
+      setShowNoModModal(true);
       return;
     }
 
-    const precisaCalibrar = selectedModules.imu;
-    setShowModuleModal(false);
-    setNoModuleError(false);
+    const sensorType = localModule.sensorSelection;
+    const needsEMG   = sensorType === 'EMG' || sensorType === 'DUAL';
 
-    if (precisaCalibrar) {
-      setShowErrorModal(true);
-    } else {
-      setIsMonitoring(true);
+    // Verifica calibração do sEMG se necessário
+    if (needsEMG && !localModule.calibrated?.sEMG) {
+      setShowNoCal(true);
+      return;
     }
+
+    // Garante que o WebSocket está ligado
+    if (!moduleService.isConnected()) {
+      setError('Módulo não está ligado. Vai à página Módulos e reconecta.');
+      return;
+    }
+
+    setError('');
+    alertCountRef.current = 0;
+    setAlertCount(0);
+    setEmgPoints([]);
+    setImuPoints([]);
+
+    // Cria sessão no backend
+    const now = new Date();
+    startTimeRef.current = now;
+    try {
+      const res = await api.createSession(token, {
+        sensorType,
+        startTime: now.toISOString(),
+        mvc: localModule.mvc ?? null,
+      });
+      sessionIdRef.current = res?.session?._id ?? null;
+    } catch {}
+
+    // Inicia monitorização no serviço (envia EMG / IMU / DUAL)
+    moduleService.startMonitoring(sensorType);
+
+    setIsMonitoring(true);
+    startTimer();
+    startGraphRefresh();
   };
 
-  const handleConfirmStop = () => {
-    setIsMonitoring(false);
+  // ── Confirmar paragem ──────────────────────────────────────────────────────
+  const handleConfirmStop = async () => {
     setShowStopModal(false);
+    setSaving(true);
+
+    stopTimer();
+    stopGraphRefresh();
+
+    const { emgBuffer } = moduleService.stopMonitoring(); // envia IDLE internamente
+
+    const endTime  = new Date();
+    const duration = elapsedSec;
+
+    // Termina sessão no backend
+    try {
+      if (sessionIdRef.current) {
+        await api.endSession(token, sessionIdRef.current, {
+          endTime:    endTime.toISOString(),
+          duration,
+          mvc:        localModule?.mvc ?? null,
+          alertCount: alertCountRef.current,
+        });
+      }
+    } catch {}
+
+    sessionIdRef.current = null;
+    setIsMonitoring(false);
+    setElapsedSec(0);
+    setSaving(false);
   };
 
+  // ── Cleanup ao desmontar ───────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      stopTimer();
+      stopGraphRefresh();
+    };
+  }, []);
+
+  // ── Mini gráfico de barras ─────────────────────────────────────────────────
+  const renderBars = (points, barColor) => {
+    if (!points || points.length === 0) {
+      return (
+        <View style={styles.graphEmpty}>
+          <Text style={styles.noDataText}>Sem dados — Inicia a monitorização</Text>
+        </View>
+      );
+    }
+    const maxVal = Math.max(...points, 1);
+    return (
+      <View style={styles.barsWrap}>
+        {points.map((v, i) => (
+          <View
+            key={i}
+            style={[
+              styles.bar,
+              {
+                height:          Math.max(2, (v / maxVal) * 60),
+                backgroundColor: barColor,
+                opacity:         0.5 + (i / points.length) * 0.5,
+              },
+            ]}
+          />
+        ))}
+      </View>
+    );
+  };
+
+  const renderIMUBars = (points) => {
+    if (!points || points.length === 0) {
+      return (
+        <View style={styles.graphEmpty}>
+          <Text style={styles.noDataText}>Sem dados — Inicia a monitorização</Text>
+        </View>
+      );
+    }
+    const maxVal = Math.max(...points.map((p) => Math.max(...p.map(Math.abs))), 1);
+    const colors3 = [colors.primary, colors.secondary, colors.purple];
+    return (
+      <View style={styles.barsWrap}>
+        {points.slice(-DISPLAY_POINTS).map((arr, i) => (
+          <View key={i} style={styles.imuBarGroup}>
+            {arr.slice(0, 3).map((v, j) => (
+              <View
+                key={j}
+                style={[
+                  styles.bar,
+                  {
+                    height:          Math.max(2, (Math.abs(v) / maxVal) * 60),
+                    backgroundColor: colors3[j] || colors.primary,
+                    width:           3,
+                    opacity:         0.6 + (i / points.length) * 0.4,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const showEMG = localModule?.sensorSelection === 'EMG'  || localModule?.sensorSelection === 'DUAL';
+  const showIMU = localModule?.sensorSelection === 'IMU'  || localModule?.sensorSelection === 'DUAL';
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
       <View style={styles.header}>
-        <TouchableOpacity
-          style={sharedStyles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={sharedStyles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backArrow}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.pageTitle}>Monitorizar</Text>
         <View style={styles.headerSpacer} />
       </View>
 
+      {/* ── Status bar ── */}
       <View style={styles.statusRow}>
-        <Text style={styles.statusLabel}>Dados em tempo real</Text>
+        <Text style={styles.statusLabel}>
+          {localModule
+            ? SENSOR_LABELS[localModule.sensorSelection] || localModule.sensorSelection
+            : 'Sem módulo'}
+        </Text>
         <View style={[styles.statusBadge, isMonitoring ? styles.statusBadgeActive : styles.statusBadgeIdle]}>
           <View style={[styles.statusDot, isMonitoring ? styles.statusDotActive : styles.statusDotIdle]} />
           <Text style={[styles.statusBadgeText, isMonitoring ? styles.statusBadgeTextActive : styles.statusBadgeTextIdle]}>
-            {isMonitoring ? 'A monitorizar' : 'À espera de início'}
+            {isMonitoring ? `A monitorizar • ${formatElapsed(elapsedSec)}` : 'À espera de início'}
           </Text>
         </View>
       </View>
+
+      {error !== '' && (
+        <View style={[sharedStyles.helperBox, styles.errorBox]}>
+          <Text style={[sharedStyles.helperText, styles.errorText]}>{error}</Text>
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        <View style={[sharedStyles.card, styles.sectionCard]}>
-          <Text style={styles.sectionTitle}>sEMG - Atividade Muscular</Text>
-          <View style={styles.graphArea}>
-            {isMonitoring ? (
-              <View style={styles.graphLinesWrap}>
-                {[...Array(3)].map((_, i) => (
-                  <View key={i} style={[styles.graphLine, { opacity: 0.4 + i * 0.25, marginTop: i * 6 }]} />
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.noDataText}>Sem dados - Inicie a monitorização</Text>
+        {/* ── sEMG ── */}
+        {showEMG && (
+          <View style={[sharedStyles.card, styles.sectionCard]}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.sectionTitle}>⚡ sEMG — Atividade Muscular</Text>
+              {localModule?.mvc != null && (
+                <Text style={styles.mvcLabel}>MVC: {localModule.mvc.toFixed(2)}</Text>
+              )}
+            </View>
+            <View style={styles.graphArea}>
+              {renderBars(emgPoints, colors.text.yellow)}
+            </View>
+            {emgPoints.length > 0 && (
+              <Text style={styles.latestValue}>
+                Último valor: {emgPoints[emgPoints.length - 1]?.toFixed(2)}
+              </Text>
             )}
           </View>
-        </View>
+        )}
 
-        <View style={[sharedStyles.card, styles.sectionCard]}>
-          <Text style={styles.sectionTitle}>IMU - Dados de movimento</Text>
-          <View style={styles.graphArea}>
-            {isMonitoring ? (
-              <View style={styles.graphLinesWrap}>
-                {[...Array(3)].map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.graphLine,
-                      { opacity: 0.3 + i * 0.3, marginTop: i * 6, backgroundColor: colors.secondary },
-                    ]}
-                  />
+        {/* ── IMU ── */}
+        {showIMU && (
+          <View style={[sharedStyles.card, styles.sectionCard]}>
+            <Text style={styles.sectionTitle}>🧭 IMU — Dados de Movimento</Text>
+            <View style={styles.graphArea}>
+              {renderIMUBars(imuPoints)}
+            </View>
+            {imuPoints.length > 0 && (
+              <View style={styles.imuValuesRow}>
+                {['X', 'Y', 'Z'].map((ax, i) => (
+                  <View key={ax} style={styles.imuValue}>
+                    <Text style={[styles.imuAxis, { color: [colors.primary, colors.secondary, colors.purple][i] }]}>
+                      {ax}
+                    </Text>
+                    <Text style={styles.imuVal}>
+                      {(imuPoints[imuPoints.length - 1]?.[i] ?? 0).toFixed(2)}
+                    </Text>
+                  </View>
                 ))}
               </View>
-            ) : (
-              <Text style={styles.noDataText}>Sem dados - Inicie a monitorização</Text>
             )}
           </View>
-        </View>
+        )}
 
-        <View style={[sharedStyles.card, styles.sectionCard, styles.emsSectionCard]}>
-          <Text style={styles.sectionTitle}>EMS - Estimulação</Text>
+        {/* ── Sem módulo ── */}
+        {!localModule && (
+          <View style={[sharedStyles.card, styles.emptyCard]}>
+            <Text style={styles.emptyIcon}>🔌</Text>
+            <Text style={styles.emptyTitle}>Sem módulo ligado</Text>
+            <Text style={styles.emptySubtitle}>
+              Liga um módulo na página "Módulos" antes de iniciar a monitorização.
+            </Text>
+          </View>
+        )}
 
-          {!isMonitoring && (
-            <>
-              <Text style={styles.emsSubtitle}>Ajuste os parâmetros antes de iniciar</Text>
-
-              <View style={styles.emsRow}>
-                <Text style={styles.emsLabel}>Intensidade</Text>
-                <Text style={styles.emsUnit}>mA</Text>
-                <View style={styles.counterWrap}>
-                  <TouchableOpacity
-                    style={styles.counterBtn}
-                    onPress={() => setIntensity((v) => clamp(v - 1, 0, 100))}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.counterBtnText}>−</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.counterValue}>{intensity}</Text>
-                  <TouchableOpacity
-                    style={styles.counterBtn}
-                    onPress={() => setIntensity((v) => clamp(v + 1, 0, 100))}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.counterBtnText}>+</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.emsRow}>
-                <Text style={styles.emsLabel}>Frequência</Text>
-                <Text style={styles.emsUnit}>Hz</Text>
-                <View style={styles.counterWrap}>
-                  <TouchableOpacity
-                    style={styles.counterBtn}
-                    onPress={() => setFrequency((v) => clamp(v - 1, 1, 200))}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.counterBtnText}>−</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.counterValue}>{frequency}</Text>
-                  <TouchableOpacity
-                    style={styles.counterBtn}
-                    onPress={() => setFrequency((v) => clamp(v + 1, 1, 200))}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.counterBtnText}>+</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.emsToggleRow}>
-                <Text style={styles.emsLabel}>Ativar EMS</Text>
-                <Switch
-                  value={emsActive}
-                  onValueChange={setEmsActive}
-                  trackColor={{ false: colors.border, true: colors.primary + '80' }}
-                  thumbColor={emsActive ? colors.primary : colors.disabled}
-                />
-              </View>
-            </>
-          )}
-
-          {isMonitoring && emsActive && (
-            <View style={styles.emsSummary}>
-              <View style={styles.emsSummaryItem}>
-                <Text style={styles.emsSummaryValue}>{intensity} mA</Text>
-                <Text style={styles.emsSummaryLabel}>Intensidade</Text>
-              </View>
-              <View style={styles.emsSummaryDivider} />
-              <View style={styles.emsSummaryItem}>
-                <Text style={styles.emsSummaryValue}>{frequency} Hz</Text>
-                <Text style={styles.emsSummaryLabel}>Frequência</Text>
-              </View>
+        {/* ── Estatísticas de sessão ── */}
+        {isMonitoring && (
+          <View style={[sharedStyles.card, styles.statsCard]}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{formatElapsed(elapsedSec)}</Text>
+              <Text style={styles.statLabel}>Duração</Text>
             </View>
-          )}
-
-          {isMonitoring && !emsActive && (
-            <View style={[sharedStyles.helperBox]}>
-              <Text style={sharedStyles.helperText}>EMS desativado</Text>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{alertCount}</Text>
+              <Text style={styles.statLabel}>Alertas</Text>
             </View>
-          )}
-        </View>
-
+          </View>
+        )}
       </ScrollView>
 
-      <View style={styles.startBtnWrap}>
-        <TouchableOpacity
-          style={[sharedStyles.primaryButton, styles.startBtn, isMonitoring && styles.stopBtn]}
-          onPress={handleStartPress}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.startBtnIcon}>{isMonitoring ? '■' : '▶'}</Text>
-          <Text style={sharedStyles.primaryButtonText}>
-            {isMonitoring ? 'Parar Monitorização' : 'Iniciar Monitorização'}
-          </Text>
-        </TouchableOpacity>
+      {/* ── Botão Iniciar / Parar ── */}
+      <View style={styles.bottomWrap}>
+        {saving ? (
+          <View style={[sharedStyles.primaryButton, styles.startBtn, { backgroundColor: colors.disabled }]}>
+            <ActivityIndicator color={colors.white} />
+            <Text style={sharedStyles.primaryButtonText}>A guardar sessão...</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[
+              sharedStyles.primaryButton,
+              styles.startBtn,
+              isMonitoring && styles.stopBtn,
+            ]}
+            onPress={isMonitoring ? () => setShowStopModal(true) : handleStartMonitoring}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.startBtnIcon}>{isMonitoring ? '■' : '▶'}</Text>
+            <Text style={sharedStyles.primaryButtonText}>
+              {isMonitoring ? 'Parar Monitorização' : 'Iniciar Monitorização'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      <Modal
-        visible={showModuleModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowModuleModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={() => setShowModuleModal(false)}
-        >
+      {/* ═══════════════════════════════════════
+          Modal: Confirmar paragem
+      ═══════════════════════════════════════ */}
+      <Modal visible={showStopModal} transparent animationType="fade" onRequestClose={() => setShowStopModal(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowStopModal(false)}>
           <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
-
-            <Text style={styles.modalTitle}>
-              Selecione os módulos em que{'\n'}pretende iniciar a monitorização
+            <Text style={styles.modalTitle}>Tens a certeza que queres{'\n'}parar a monitorização?</Text>
+            <Text style={styles.modalSubtitle}>
+              A sessão será guardada automaticamente no histórico.
             </Text>
-
-            <View style={styles.moduleList}>
-              {moduleOptions.map((m) => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={[
-                    sharedStyles.input,
-                    styles.moduleItem,
-                    selectedModules[m.id] && sharedStyles.inputSelected,
-                  ]}
-                  onPress={() => toggleModule(m.id)}
-                  activeOpacity={0.82}
-                >
-                  <View style={styles.moduleItemText}>
-                    <Text style={[
-                      styles.moduleTitle,
-                      selectedModules[m.id] && sharedStyles.inputSelectedText,
-                    ]}>
-                      {m.title}
-                    </Text>
-                    <Text style={styles.moduleSubtitle}>{m.subtitle}</Text>
-                  </View>
-                  <View style={[
-                    sharedStyles.checkboxCircle,
-                    selectedModules[m.id] && sharedStyles.checkboxSelected,
-                  ]}>
-                    {selectedModules[m.id] && <View style={sharedStyles.checkboxDot} />}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             <TouchableOpacity
-              style={[sharedStyles.primaryButton, styles.modalBtn]}
-              onPress={handleSeguinte}
+              style={[sharedStyles.primaryButton, sharedStyles.confirmButton]}
+              onPress={handleConfirmStop}
               activeOpacity={0.85}
             >
-              <Text style={sharedStyles.primaryButtonText}>Seguinte</Text>
+              <Text style={sharedStyles.confirmButtonText}>Sim, parar!</Text>
             </TouchableOpacity>
-
-            {noModuleError && (
-              <View style={[sharedStyles.helperBox, styles.errorBox]}>
-                <Text style={[sharedStyles.helperText, styles.errorText]}>
-                  Tem de selecionar pelo menos um módulo!
-                </Text>
-              </View>
-            )}
-
+            <TouchableOpacity
+              style={[sharedStyles.primaryButton, sharedStyles.cancelButton]}
+              onPress={() => setShowStopModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={sharedStyles.cancelButtonText}>Não, cancelar!</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
 
-      <Modal
-        visible={showErrorModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowErrorModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={() => setShowErrorModal(false)}
-        >
+      {/* ═══════════════════════════════════════
+          Modal: Sem módulo
+      ═══════════════════════════════════════ */}
+      <Modal visible={showNoModModal} transparent animationType="fade" onRequestClose={() => setShowNoModModal(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowNoModModal(false)}>
           <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
-
-            <View style={styles.errorIconWrap}>
-              <View style={[sharedStyles.closeButton, styles.errorIcon]}>
-                <Text style={sharedStyles.closeButtonText}>✕</Text>
-              </View>
-            </View>
-
-            <Text style={styles.modalTitleBold}>Erro!</Text>
+            <Text style={styles.modalEmoji}>🔌</Text>
+            <Text style={styles.modalTitle}>Sem módulo ligado</Text>
             <Text style={styles.modalSubtitle}>
-              Antes de iniciar a monitorização{'\n'}tem de calibrar os módulos!
+              Conecta um módulo na página "Módulos" antes de iniciar a monitorização.
             </Text>
-
             <TouchableOpacity
-              style={[sharedStyles.primaryButton, styles.modalBtn]}
+              style={sharedStyles.primaryButton}
               onPress={() => {
-                setShowErrorModal(false);
+                setShowNoModModal(false);
+                navigation.navigate('MainTabs', { screen: 'Módulos' });
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={sharedStyles.primaryButtonText}>Ir para Módulos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[sharedStyles.primaryButton, sharedStyles.cancelButton]}
+              onPress={() => setShowNoModModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={sharedStyles.cancelButtonText}>Fechar</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ═══════════════════════════════════════
+          Modal: sEMG não calibrado
+      ═══════════════════════════════════════ */}
+      <Modal visible={showNoCal} transparent animationType="fade" onRequestClose={() => setShowNoCal(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowNoCal(false)}>
+          <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
+            <View style={[sharedStyles.closeButton, { width: 56, height: 56, borderRadius: 28, alignSelf: 'center' }]}>
+              <Text style={sharedStyles.closeButtonText}>✕</Text>
+            </View>
+            <Text style={styles.modalTitle}>Erro!</Text>
+            <Text style={styles.modalSubtitle}>
+              Antes de iniciar a monitorização tens de calibrar o sensor sEMG!
+            </Text>
+            <TouchableOpacity
+              style={sharedStyles.primaryButton}
+              onPress={() => {
+                setShowNoCal(false);
                 navigation.navigate('Calibrate');
               }}
               activeOpacity={0.85}
             >
               <Text style={sharedStyles.primaryButtonText}>Calibrar</Text>
             </TouchableOpacity>
-
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-
-      <Modal
-        visible={showStopModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowStopModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={() => setShowStopModal(false)}
-        >
-          <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
-
-            <Text style={styles.modalTitle}>
-              Tem a certeza que quer parar{'\n'}a monitorização?
-            </Text>
-
-            <TouchableOpacity
-              style={[sharedStyles.primaryButton, sharedStyles.confirmButton, styles.modalBtn]}
-              onPress={handleConfirmStop}
-              activeOpacity={0.85}
-            >
-              <Text style={sharedStyles.confirmButtonText}>Sim, tenho!</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[sharedStyles.primaryButton, sharedStyles.cancelButton, styles.modalBtn]}
-              onPress={() => setShowStopModal(false)}
-              activeOpacity={0.85}
-            >
-              <Text style={sharedStyles.cancelButtonText}>Não, cancelar!</Text>
-            </TouchableOpacity>
-
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 0,
+    paddingHorizontal: 20, paddingTop: 4,
   },
-  backArrow: {
-    fontSize: 32,
-    color: colors.text.primary,
-    fontWeight: '600',
-    lineHeight: 32,
-  },
-  pageTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 50,
-  },
+  backArrow:    { fontSize: 32, color: colors.text.primary, fontWeight: '600', lineHeight: 32 },
+  pageTitle:    { fontSize: 20, fontWeight: '700', color: colors.text.primary },
+  headerSpacer: { width: 50 },
 
   statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 20, paddingVertical: 10,
   },
-  statusLabel: {
-    fontSize: 13,
-    color: colors.text.secondary,
-    fontWeight: '500',
-  },
+  statusLabel: { fontSize: 13, color: colors.text.secondary, fontWeight: '600' },
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    gap: 6,
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, gap: 6,
   },
-  statusBadgeIdle: {
-    backgroundColor: colors.cardBg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statusBadgeActive: {
-    backgroundColor: '#D1FAE5',
-    borderWidth: 1,
-    borderColor: '#6EE7B7',
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  statusDotIdle: {
-    backgroundColor: colors.text.secondary,
-  },
-  statusDotActive: {
-    backgroundColor: colors.secondary,
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusBadgeTextIdle: {
-    color: colors.text.secondary,
-  },
-  statusBadgeTextActive: {
-    color: colors.secondary,
-  },
-
-  scroll: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 14,
-  },
-
-  sectionCard: {
-    backgroundColor: colors.white,
-    padding: 16,
-    borderWidth: 1,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text.primary,
-    marginBottom: 12,
-  },
-
-  graphArea: {
-    height: 70,
-    backgroundColor: colors.background,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    overflow: 'hidden',
-  },
-  noDataText: {
-    fontSize: 13,
-    color: colors.text.secondary,
-    fontWeight: '500',
-  },
-  graphLinesWrap: {
-    width: '100%',
-    gap: 4,
-    paddingTop: 12,
-  },
-  graphLine: {
-    height: 2,
-    width: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 2,
-  },
-
-  emsSectionCard: {
-    gap: 4,
-  },
-  emsSubtitle: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginBottom: 10,
-    marginTop: -8,
-  },
-  emsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  emsToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  emsLabel: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text.primary,
-  },
-  emsUnit: {
-    fontSize: 13,
-    color: colors.text.secondary,
-    marginRight: 10,
-    width: 24,
-    textAlign: 'right',
-  },
-  counterWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  counterBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  counterBtnText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text.primary,
-    lineHeight: 20,
-  },
-  counterValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text.primary,
-    minWidth: 28,
-    textAlign: 'center',
-  },
-
-  emsSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingVertical: 12,
-    marginTop: 4,
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  emsSummaryItem: {
-    alignItems: 'center',
-    gap: 2,
-  },
-  emsSummaryValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.text.primary,
-    letterSpacing: -0.5,
-  },
-  emsSummaryLabel: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    fontWeight: '500',
-  },
-  emsSummaryDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: colors.border,
-  },
-
-  startBtnWrap: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: colors.background,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  startBtn: {
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stopBtn: {
-    backgroundColor: colors.text.red,
-    shadowColor: colors.text.red,
-  },
-  startBtnIcon: {
-    fontSize: 16,
-    color: colors.white,
-    position: 'absolute',
-    left: 20,
-  },
-
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  modalCard: {
-    width: '100%',
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: 24,
-    gap: 12,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text.primary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 4,
-  },
-  modalTitleBold: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  modalBtn: {
-    marginHorizontal: 0,
-    marginTop: 0,
-    paddingVertical: 15,
-  },
-
-  moduleList: {
-    gap: 8,
-  },
-  moduleItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  moduleItemText: {
-    flex: 1,
-  },
-  moduleTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text.primary,
-  },
-  moduleSubtitle: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
+  statusBadgeIdle:       { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border },
+  statusBadgeActive:     { backgroundColor: colors.secondary + '25', borderWidth: 1, borderColor: colors.secondary + '80' },
+  statusDot:             { width: 7, height: 7, borderRadius: 4 },
+  statusDotIdle:         { backgroundColor: colors.text.secondary },
+  statusDotActive:       { backgroundColor: colors.secondary },
+  statusBadgeText:       { fontSize: 12, fontWeight: '600' },
+  statusBadgeTextIdle:   { color: colors.text.secondary },
+  statusBadgeTextActive: { color: colors.secondary },
 
   errorBox: {
     backgroundColor: colors.redBackground,
     borderColor: colors.text.red + '30',
+    marginHorizontal: 20, marginBottom: 4,
   },
-  errorText: {
-    color: colors.text.red,
-    fontStyle: 'normal',
-    textAlign: 'center',
-  },
+  errorText: { color: colors.text.red, fontStyle: 'normal', textAlign: 'center' },
 
-  errorIconWrap: {
-    alignItems: 'center',
-    marginBottom: 4,
+  scroll: { paddingHorizontal: 20, paddingBottom: 16, gap: 14 },
+
+  sectionCard: { backgroundColor: colors.white, padding: 16, borderWidth: 1 },
+  cardHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text.primary },
+  mvcLabel:     { fontSize: 12, color: colors.primary, fontWeight: '600' },
+
+  graphArea: {
+    height: 72, backgroundColor: colors.background,
+    borderRadius: 10, borderWidth: 1, borderColor: colors.border,
+    overflow: 'hidden',
   },
-  errorIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  graphEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  noDataText: { fontSize: 13, color: colors.text.secondary, fontWeight: '500' },
+  barsWrap: {
+    flex: 1, flexDirection: 'row',
+    alignItems: 'flex-end', paddingHorizontal: 6, paddingBottom: 4, gap: 2,
+  },
+  bar: { flex: 1, borderRadius: 2, minHeight: 2 },
+
+  imuBarGroup:   { flex: 1, flexDirection: 'row', alignItems: 'flex-end', gap: 1 },
+  latestValue:   { fontSize: 12, color: colors.text.secondary, marginTop: 6, textAlign: 'right' },
+  imuValuesRow:  { flexDirection: 'row', justifyContent: 'space-evenly', marginTop: 8 },
+  imuValue:      { alignItems: 'center', gap: 2 },
+  imuAxis:       { fontSize: 11, fontWeight: '700' },
+  imuVal:        { fontSize: 14, fontWeight: '700', color: colors.text.primary },
+
+  emptyCard: {
+    backgroundColor: colors.white, padding: 32,
+    alignItems: 'center', gap: 10, borderWidth: 1,
+  },
+  emptyIcon:     { fontSize: 40, marginBottom: 4 },
+  emptyTitle:    { fontSize: 17, fontWeight: '700', color: colors.text.primary, textAlign: 'center' },
+  emptySubtitle: { fontSize: 13, color: colors.text.secondary, textAlign: 'center', lineHeight: 20 },
+
+  statsCard: {
+    backgroundColor: colors.white, borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-evenly', paddingVertical: 16,
+  },
+  statItem:    { alignItems: 'center', gap: 4 },
+  statValue:   { fontSize: 22, fontWeight: '800', color: colors.text.primary, letterSpacing: -0.5 },
+  statLabel:   { fontSize: 12, fontWeight: '500', color: colors.text.secondary },
+  statDivider: { width: 1, height: 40, backgroundColor: colors.border },
+
+  bottomWrap: {
+    paddingHorizontal: 20, paddingVertical: 14,
+    backgroundColor: colors.background,
+    borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  startBtn: {
+    borderRadius: 16, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  stopBtn:      { backgroundColor: colors.text.red, shadowColor: colors.text.red },
+  startBtnIcon: { fontSize: 14, color: colors.white },
+
+  overlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  modalCard: {
+    width: '100%', backgroundColor: colors.white,
+    borderRadius: 20, paddingHorizontal: 24,
+    paddingTop: 28, paddingBottom: 24, gap: 12,
+  },
+  modalEmoji: { fontSize: 40, textAlign: 'center' },
+  modalTitle: {
+    fontSize: 18, fontWeight: '800', color: colors.text.primary,
+    textAlign: 'center', lineHeight: 26,
+  },
+  modalSubtitle: {
+    fontSize: 14, color: colors.text.secondary,
+    textAlign: 'center', lineHeight: 22,
   },
 });

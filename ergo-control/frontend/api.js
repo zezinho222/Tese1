@@ -68,17 +68,47 @@ export const api = {
   getModules: async (token) =>
     authFetch('/api/modules', token),
 
-  scanModules: async (token, type) =>
-    authFetch(`/api/modules/scan?type=${encodeURIComponent(type)}`, token),
+  scanModules: async (token) =>
+    authFetch('/api/modules/scan', token),
 
-  addModule: async (token, { name, type, ip, port, battery }) =>
+  addModule: async (token, { name, ip, port, battery, sensorSelection, offsetValue, offsetLabel, freqHz, freqValue }) =>
     authFetch('/api/modules', token, {
       method: 'POST',
-      body: JSON.stringify({ name, type, ip, port, battery }),
+      body: JSON.stringify({ name, ip, port, battery, sensorSelection, offsetValue, offsetLabel, freqHz, freqValue }),
     }),
 
   removeModule: async (token, moduleId) =>
     authFetch(`/api/modules/${moduleId}`, token, {
+      method: 'DELETE',
+    }),
+
+  updateCalibration: async (token, moduleId, { sensor, mvc }) =>
+    authFetch(`/api/modules/${moduleId}/calibration`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ sensor, mvc }),
+    }),
+
+  // ── Sessions ─────────────────────────────────────────────────────────
+  getSessions: async (token) =>
+    authFetch('/api/sessions', token),
+
+  getSession: async (token, sessionId) =>
+    authFetch(`/api/sessions/${sessionId}`, token),
+
+  createSession: async (token, { sensorType, startTime, endTime, duration, mvc, alertCount }) =>
+    authFetch('/api/sessions', token, {
+      method: 'POST',
+      body: JSON.stringify({ sensorType, startTime, endTime, duration, mvc, alertCount }),
+    }),
+
+  endSession: async (token, sessionId, { endTime, duration, mvc, alertCount }) =>
+    authFetch(`/api/sessions/${sessionId}/end`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ endTime, duration, mvc, alertCount }),
+    }),
+
+  deleteSession: async (token, sessionId) =>
+    authFetch(`/api/sessions/${sessionId}`, token, {
       method: 'DELETE',
     }),
 };
