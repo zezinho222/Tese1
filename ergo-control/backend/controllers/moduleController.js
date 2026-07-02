@@ -1,6 +1,6 @@
 const Module = require('../models/Module');
 
-const MODULE_IP   = '192.168.4.2';
+const MODULE_IP   = '192.168.4.1';
 const MODULE_PORT = 80;
 const SCAN_TIMEOUT = 5000; // ms
 

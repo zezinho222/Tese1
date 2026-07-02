@@ -13,7 +13,7 @@ import {
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import moduleService from '../moduleService';
 
-const MODULE_IP   = '192.168.4.2';
+const MODULE_IP   = '192.168.4.1';
 const MODULE_NAME = 'ErgoControl';
 
 export default function ScanModulesPage({ navigation }) {

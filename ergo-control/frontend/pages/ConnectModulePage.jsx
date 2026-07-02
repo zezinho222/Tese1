@@ -19,7 +19,7 @@ import { api } from '../api';
 import moduleService from '../moduleService';
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
-const MODULE_IP   = '192.168.4.2';
+const MODULE_IP   = '192.168.4.1';
 
 // ── Opções de offset ───────────────────────────────────────────────────────────
 const OFFSET_OPTIONS = [
