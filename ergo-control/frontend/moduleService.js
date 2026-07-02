@@ -8,7 +8,7 @@
  *  - Modo DUAL:  mensagem com prefixo, ex: "EMG:1234.5" ou "IMU:1.2,3.4,5.6"
  */
 
-const MODULE_IP  = '192.168.4.1';
+const MODULE_IP  = '192.168.4.2';
 const WS_URL     = `ws://${MODULE_IP}/ws`;
 const HTTP_URL   = `http://${MODULE_IP}`;
 
