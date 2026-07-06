@@ -47,13 +47,21 @@ function parseMessage(raw) {
  * Wi-Fi do módulo, mesmo que o sistema a marque como "sem internet".
  * Sem isto, fetch()/WebSocket para 192.168.4.1 pode falhar mesmo
  * estando fisicamente ligado à rede do ESP32.
+ *
+ * NOTA: usamos forceWifiUsageWithOptions (em vez do forceWifiUsage,
+ * que está depreciado) com { noInternet: true }, que é a forma
+ * correta de indicar ao Android que o ponto de acesso não tem
+ * internet — sem isto, alguns telemóveis (Samsung, Xiaomi, etc.)
+ * ignoram o bind e voltam a marcar a rede como inutilizável.
  */
 async function bindToModuleWifi() {
   try {
-    await WifiManager.forceWifiUsage(true);
+    await WifiManager.forceWifiUsageWithOptions(true, { noInternet: true });
     wifiForced = true;
+    console.log('[ModuleService] forceWifiUsageWithOptions(true) OK — tráfego a sair pela wifi do módulo');
   } catch (e) {
-    console.log('[ModuleService] forceWifiUsage(true) falhou:', e);
+    wifiForced = false;
+    console.log('[ModuleService] forceWifiUsageWithOptions(true) falhou:', e);
   }
 }
 
@@ -65,9 +73,9 @@ async function bindToModuleWifi() {
 async function releaseModuleWifi() {
   if (!wifiForced) return;
   try {
-    await WifiManager.forceWifiUsage(false);
+    await WifiManager.forceWifiUsageWithOptions(false, { noInternet: true });
   } catch (e) {
-    console.log('[ModuleService] forceWifiUsage(false) falhou:', e);
+    console.log('[ModuleService] forceWifiUsageWithOptions(false) falhou:', e);
   } finally {
     wifiForced = false;
   }
@@ -82,6 +90,10 @@ const moduleService = {
   async isModuleReachable() {
     await bindToModuleWifi();
 
+    if (!wifiForced) {
+      console.log('[ModuleService] Aviso: não foi possível forçar o uso da wifi do módulo — o fetch seguinte pode falhar mesmo com o módulo acessível.');
+    }
+
     let timeoutId;
     const controller = new AbortController();
     try {
@@ -89,8 +101,9 @@ const moduleService = {
       await fetch(HTTP_URL, { signal: controller.signal });
       clearTimeout(timeoutId);
       return true;
-    } catch {
+    } catch (e) {
       clearTimeout(timeoutId);
+      console.log('[ModuleService] fetch a', HTTP_URL, 'falhou:', e?.message || e);
       return false;
     }
   },
