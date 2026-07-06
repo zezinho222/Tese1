@@ -14,11 +14,15 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "plugins": [
+      "react-native-wifi-reborn"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lanzass.ergocontrol",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Necessário para detetar e ligar à rede Wi-Fi do módulo ErgoControl."
       }
     },
     "android": {
@@ -29,7 +33,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.lanzass.ergocontrol",
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

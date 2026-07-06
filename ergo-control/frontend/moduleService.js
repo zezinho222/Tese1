@@ -8,6 +8,8 @@
  *  - Modo DUAL:  mensagem com prefixo, ex: "EMG:1234.5" ou "IMU:1.2,3.4,5.6"
  */
 
+import WifiManager from 'react-native-wifi-reborn';
+
 const MODULE_IP  = '192.168.4.1';
 const WS_URL     = `ws://${MODULE_IP}/ws`;
 const HTTP_URL   = `http://${MODULE_IP}`;
@@ -20,6 +22,7 @@ let imuBuffer     = [];          // buffer de monitorização IMU
 let calibBuffer   = [];          // buffer exclusivo da calibração
 let monitoring    = false;
 let calibMode     = false;
+let wifiForced    = false;       // se já forçámos o uso da wifi do módulo
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function parseMessage(raw) {
@@ -39,6 +42,37 @@ function parseMessage(raw) {
   return { type: 'TEXT', value: str };
 }
 
+/**
+ * Força o Android a encaminhar o tráfego de rede do processo pela
+ * Wi-Fi do módulo, mesmo que o sistema a marque como "sem internet".
+ * Sem isto, fetch()/WebSocket para 192.168.4.1 pode falhar mesmo
+ * estando fisicamente ligado à rede do ESP32.
+ */
+async function bindToModuleWifi() {
+  try {
+    await WifiManager.forceWifiUsage(true);
+    wifiForced = true;
+  } catch (e) {
+    console.log('[ModuleService] forceWifiUsage(true) falhou:', e);
+  }
+}
+
+/**
+ * Reverte o forceWifiUsage, devolvendo o tráfego normal da app
+ * à rede com internet (dados móveis / outra Wi-Fi).
+ * Deve ser chamado sempre que se desliga do módulo.
+ */
+async function releaseModuleWifi() {
+  if (!wifiForced) return;
+  try {
+    await WifiManager.forceWifiUsage(false);
+  } catch (e) {
+    console.log('[ModuleService] forceWifiUsage(false) falhou:', e);
+  } finally {
+    wifiForced = false;
+  }
+}
+
 // ─── Módulo público ───────────────────────────────────────────────────────────
 const moduleService = {
   /**
@@ -46,6 +80,8 @@ const moduleService = {
    * Retorna true se o módulo responder, false caso contrário.
    */
   async isModuleReachable() {
+    await bindToModuleWifi();
+
     let timeoutId;
     const controller = new AbortController();
     try {
@@ -63,7 +99,7 @@ const moduleService = {
    * Abre a ligação WebSocket com o módulo.
    * @param {object} callbacks - { onOpen, onClose, onError, onData }
    */
-  connect({ onOpen, onClose, onError, onData } = {}) {
+  async connect({ onOpen, onClose, onError, onData } = {}) {
     // Se já está ligado, chama onOpen e sai
     if (ws && ws.readyState === 1 /* OPEN */) {
       onOpen && onOpen();
@@ -73,6 +109,9 @@ const moduleService = {
     if (ws && ws.readyState === 0 /* CONNECTING */) {
       return;
     }
+
+    // Garante que o pedido de WebSocket sai pela wifi do módulo
+    await bindToModuleWifi();
 
     try {
       ws = new WebSocket(WS_URL);
@@ -122,12 +161,16 @@ const moduleService = {
     }
   },
 
-  /** Fecha a ligação WebSocket. */
-  disconnect() {
+  /**
+   * Fecha a ligação WebSocket e devolve o tráfego de rede ao normal
+   * (dados móveis / wifi com internet).
+   */
+  async disconnect() {
     if (ws) {
       ws.close();
       ws = null;
     }
+    await releaseModuleWifi();
   },
 
   /**

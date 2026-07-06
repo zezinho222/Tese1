@@ -74,6 +74,7 @@ export default function ConnectModulePage({ navigation }) {
 
   const [error,           setError]           = useState('');
   const [saving,          setSaving]          = useState(false);
+  const [leaving,         setLeaving]         = useState(false);
 
   // ── Lógica de seleção ─────────────────────────────────────────────────────
   const atLeastOne = semgOn || imuOn;
@@ -165,6 +166,21 @@ export default function ConnectModulePage({ navigation }) {
     setModalStep(STEP_SELECTION);
   };
 
+  // ── Voltar atrás: sai do fluxo sem guardar → desliga o WebSocket
+  //    e liberta a Wi-Fi forçada, para o resto da app voltar a usar internet ──
+  const handleBack = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await moduleService.disconnect();
+    } catch (e) {
+      console.log('[ConnectModulePage] Erro ao desligar módulo:', e);
+    } finally {
+      setLeaving(false);
+      navigation.goBack();
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
@@ -172,8 +188,15 @@ export default function ConnectModulePage({ navigation }) {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={sharedStyles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backArrow}>‹</Text>
+        <TouchableOpacity
+          style={sharedStyles.backButton}
+          onPress={handleBack}
+          disabled={leaving}
+        >
+          {leaving
+            ? <ActivityIndicator size="small" color={colors.text.primary} />
+            : <Text style={styles.backArrow}>‹</Text>
+          }
         </TouchableOpacity>
         <Text style={styles.pageTitle}>Módulos</Text>
         <View style={styles.headerSpacer} />
