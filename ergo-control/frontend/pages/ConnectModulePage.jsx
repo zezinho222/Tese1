@@ -119,8 +119,7 @@ export default function ConnectModulePage({ navigation }) {
     const sensorString = getSensorString();
 
     // Envia comando FREQ + valor ao módulo
-    moduleService.sendCommand('FREQ');
-    moduleService.sendCommand(String(freqValue));
+    moduleService.setFrequency(freqHz);
 
     // Monta o objecto do módulo
     const moduleData = {
@@ -132,7 +131,6 @@ export default function ConnectModulePage({ navigation }) {
       offsetValue:     selectedOffset.value,
       offsetLabel:     selectedOffset.label,
       freqHz,
-      freqValue,
       calibrated:      { sEMG: false, IMU: imuOn }, // IMU auto-calibrado
       mvc:             null,
       backendId:       null,
