@@ -10,10 +10,9 @@
 
 import WifiManager from 'react-native-wifi-reborn';
 
-const MODULE_IP  = '192.168.4.1';
+const MODULE_IP   = '192.168.4.1';
 const MODULE_PORT = 1234;
-const WS_URL     = `ws://${MODULE_IP}:${MODULE_PORT}/ws`;
-const HTTP_URL   = `http://${MODULE_IP}:${MODULE_PORT}`;
+const WS_URL      = `ws://${MODULE_IP}:${MODULE_PORT}/ws`;
 
 // ─── Estado interno ───────────────────────────────────────────────────────────
 let ws            = null;
@@ -85,28 +84,58 @@ async function releaseModuleWifi() {
 // ─── Módulo público ───────────────────────────────────────────────────────────
 const moduleService = {
   /**
-   * Verifica se o módulo está acessível na rede (HTTP ping com timeout de 5s).
-   * Retorna true se o módulo responder, false caso contrário.
+   * Verifica se o módulo está acessível na rede.
+   * Usa um handshake WebSocket real (em vez de um fetch HTTP) porque o
+   * ESP32 tipicamente só expõe um servidor WebSocket nesta porta — não
+   * responde a um GET HTTP normal, o que fazia o teste antigo falhar
+   * mesmo com o módulo acessível e a rede certa.
+   * Retorna true se o WebSocket abrir dentro do timeout, false caso contrário.
    */
   async isModuleReachable() {
     await bindToModuleWifi();
 
     if (!wifiForced) {
-      console.log('[ModuleService] Aviso: não foi possível forçar o uso da wifi do módulo — o fetch seguinte pode falhar mesmo com o módulo acessível.');
+      console.log('[ModuleService] Aviso: não foi possível forçar o uso da wifi do módulo — a ligação seguinte pode falhar mesmo com o módulo acessível.');
     }
 
-    let timeoutId;
-    const controller = new AbortController();
-    try {
-      timeoutId = setTimeout(() => controller.abort(), 5000);
-      await fetch(HTTP_URL, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      return true;
-    } catch (e) {
-      clearTimeout(timeoutId);
-      console.log('[ModuleService] fetch a', HTTP_URL, 'falhou:', e?.message || e);
-      return false;
-    }
+    return new Promise((resolve) => {
+      let settled = false;
+      let testWs;
+
+      const timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        console.log('[ModuleService] Teste de alcançabilidade a', WS_URL, 'expirou (timeout)');
+        testWs?.close();
+        resolve(false);
+      }, 5000);
+
+      try {
+        testWs = new WebSocket(WS_URL);
+
+        testWs.onopen = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeoutId);
+          testWs.close();
+          resolve(true);
+        };
+
+        testWs.onerror = (e) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeoutId);
+          console.log('[ModuleService] Teste de alcançabilidade a', WS_URL, 'falhou:', e?.message || e);
+          resolve(false);
+        };
+      } catch (e) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        console.log('[ModuleService] Falha ao criar WebSocket de teste:', e);
+        resolve(false);
+      }
+    });
   },
 
   /**
