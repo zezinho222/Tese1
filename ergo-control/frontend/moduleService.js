@@ -11,8 +11,9 @@
 import WifiManager from 'react-native-wifi-reborn';
 
 const MODULE_IP  = '192.168.4.1';
-const WS_URL     = `ws://${MODULE_IP}/ws`;
-const HTTP_URL   = `http://${MODULE_IP}`;
+const MODULE_PORT = 1234;
+const WS_URL     = `ws://${MODULE_IP}:${MODULE_PORT}/ws`;
+const HTTP_URL   = `http://${MODULE_IP}:${MODULE_PORT}`;
 
 // ─── Estado interno ───────────────────────────────────────────────────────────
 let ws            = null;
