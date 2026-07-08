@@ -12,11 +12,12 @@ import {
   Platform,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import moduleService from '../moduleService';
+import syncService from '../syncService';
+
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
 const MODULE_IP   = '192.168.4.1';
@@ -444,7 +445,7 @@ export default function ConnectModulePage({ navigation }) {
               onPress={handleConfirmFreq}
               activeOpacity={0.85}
             >
-              <Text style={sharedStyles.primaryButtonText}>Confirmar</Text>
+              <Text style={[sharedStyles.primaryButtonText, { fontSize: 16 }]}>Confirmar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[sharedStyles.primaryButton, sharedStyles.cancelButton]}

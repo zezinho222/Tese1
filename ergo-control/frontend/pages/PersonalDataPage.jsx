@@ -12,6 +12,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
@@ -69,13 +70,14 @@ function SensitiveFieldRow({ label, currentValue, onRequestChange, loading }) {
 export default function PersonalDataPage({ navigation }) {
   const { user, token, login } = useAuth();
 
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [email, setEmail] = useState(user?.email || '');
 
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
 
   // Estado para modais
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -91,6 +93,14 @@ export default function PersonalDataPage({ navigation }) {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordSent, setPasswordSent] = useState(false);
 
+  // ─── Deteção de ligação à internet em tempo real ───────────────────────
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOffline(!state.isInternetReachable);
+    });
+    return () => unsubscribe();
+  }, []);
+
   // ─── Carregar dados da DB ao entrar na página ──────────────────────────
   useEffect(() => {
     const loadProfile = async () => {
@@ -104,7 +114,8 @@ export default function PersonalDataPage({ navigation }) {
           await login(data.user, token);
         }
       } catch (e) {
-        console.error('Erro ao carregar perfil:', e);
+        // Sem internet real (ex: ligado à Wi-Fi do módulo) — mantém os
+        // dados em cache do login, mostrados através do useState acima.
       } finally {
         setFetchLoading(false);
       }
@@ -213,6 +224,15 @@ export default function PersonalDataPage({ navigation }) {
         <View style={styles.headerSpacer} />
       </View>
 
+      {/* ── Aviso offline ── */}
+      {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineBannerText}>
+            📡 Está offline. Ligue-se a uma rede Wi-Fi com internet para alterar os seus dados.
+          </Text>
+        </View>
+      )}
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -316,9 +336,10 @@ export default function PersonalDataPage({ navigation }) {
       <View style={styles.bottomWrap}>
         {!editing ? (
           <TouchableOpacity
-            style={sharedStyles.secondaryButton}
+            style={[sharedStyles.secondaryButton, isOffline && styles.buttonDisabledOpacity]}
             onPress={() => setEditing(true)}
             activeOpacity={0.85}
+            disabled={isOffline}
           >
             <Text style={sharedStyles.secondaryButtonText}>Alterar Dados</Text>
           </TouchableOpacity>
@@ -333,10 +354,14 @@ export default function PersonalDataPage({ navigation }) {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[sharedStyles.primaryButton, styles.saveBtn]}
+              style={[
+                sharedStyles.primaryButton,
+                styles.saveBtn,
+                isOffline && styles.buttonDisabledOpacity,
+              ]}
               onPress={() => setShowConfirmModal(true)}
               activeOpacity={0.85}
-              disabled={loading}
+              disabled={loading || isOffline}
             >
               {loading ? (
                 <ActivityIndicator color={colors.white} />
@@ -506,6 +531,24 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 50,
+  },
+  offlineBanner: {
+    backgroundColor: colors.yellowBackground,
+    marginHorizontal: 20,
+    marginTop: 8,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  offlineBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text.yellow,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  buttonDisabledOpacity: {
+    opacity: 0.5,
   },
   scroll: {
     paddingHorizontal: 20,

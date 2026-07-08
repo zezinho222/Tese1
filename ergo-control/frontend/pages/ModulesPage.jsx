@@ -240,7 +240,7 @@ export default function ModulesPage({ navigation }) {
               onPress={handleWifiConfirm}
               activeOpacity={0.85}
             >
-              <Text style={sharedStyles.primaryButtonText}>Já estou ligado — Continuar</Text>
+              <Text style={[sharedStyles.primaryButtonText, { fontSize: 16 }]}>Já estou ligado — Continuar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[sharedStyles.primaryButton, sharedStyles.cancelButton, { marginTop: 0 }]}
