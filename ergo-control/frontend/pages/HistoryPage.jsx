@@ -13,7 +13,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../api';
+import syncService from '../syncService';
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
 const SENSOR_ICONS  = { EMG: '⚡', IMU: '🧭', DUAL: '⚡🧭' };
@@ -47,20 +47,16 @@ export default function HistoryPage({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState('');
 
-  // ── Carregar sessões ────────────────────────────────────────────────────────
+  // ── Carregar sessões (local + merge com backend quando há internet) ───────
   const loadSessions = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError('');
     try {
-      const data = await api.getSessions(token);
-      if (data.success) {
-        setSessions(data.sessions || []);
-      } else {
-        setError(data.message || 'Erro ao carregar sessões.');
-      }
+      const merged = await syncService.getMergedSessions(token);
+      setSessions(merged);
     } catch {
-      setError('Sem ligação ao servidor.');
+      setError('Erro ao carregar sessões.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -122,7 +118,7 @@ export default function HistoryPage({ navigation }) {
               const sensorLabel = SENSOR_LABELS[session.sensorType] || session.sensorType;
               const sensorIcon  = SENSOR_ICONS[session.sensorType]  || '📡';
               return (
-                <View key={session._id} style={[sharedStyles.card, styles.sessionCard]}>
+                <View key={session.localId} style={[sharedStyles.card, styles.sessionCard]}>
                   {/* Cabeçalho */}
                   <View style={styles.sessionHeader}>
                     <View style={styles.sessionTitleRow}>
@@ -136,6 +132,12 @@ export default function HistoryPage({ navigation }) {
                     </View>
                     <Text style={styles.sessionDate}>{formatDate(session.startTime)}</Text>
                   </View>
+
+                  {session.synced === false && (
+                    <View style={styles.syncBadge}>
+                      <Text style={styles.syncBadgeText}>⏳ Por sincronizar</Text>
+                    </View>
+                  )}
 
                   {/* Estatísticas */}
                   <View style={styles.statsRow}>
@@ -161,7 +163,7 @@ export default function HistoryPage({ navigation }) {
 
                   <TouchableOpacity
                     style={styles.detailsBtn}
-                    onPress={() => navigation.navigate('HistoryDetail', { sessionId: session._id })}
+                    onPress={() => navigation.navigate('HistoryDetail', { sessionId: session.localId })}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.detailsBtnText}>Ver detalhes ›</Text>
@@ -191,81 +193,215 @@ export default function HistoryPage({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 4,
-  },
-  backArrow:    { fontSize: 32, color: colors.text.primary, fontWeight: '600', lineHeight: 32 },
-  pageTitle:    { fontSize: 20, fontWeight: '700', color: colors.text.primary },
-  headerSpacer: { width: 50 },
-
-  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  scroll: { paddingHorizontal: 20, paddingBottom: 16, gap: 14 },
-
-  sectionLabel: {
-    fontSize: 13, fontWeight: '500',
-    color: colors.text.secondary, marginBottom: -4,
-  },
-
-  errorBox: { backgroundColor: colors.redBackground, borderColor: colors.text.red + '30' },
-  errorText: { color: colors.text.red, fontStyle: 'normal', textAlign: 'center' },
-
-  emptyCard: {
-    backgroundColor: colors.white, padding: 32,
-    alignItems: 'center', gap: 10, borderWidth: 1,
-  },
-  emptyIcon:     { fontSize: 40, marginBottom: 4 },
-  emptyTitle:    { fontSize: 17, fontWeight: '700', color: colors.text.primary, textAlign: 'center' },
-  emptySubtitle: { fontSize: 13, color: colors.text.secondary, textAlign: 'center', lineHeight: 20 },
-
-  sessionCard: { backgroundColor: colors.white, padding: 14, borderWidth: 1, gap: 10 },
-
-  sessionHeader: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  sessionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sessionIcon:     { fontSize: 22 },
-  sessionTitle:    { fontSize: 16, fontWeight: '700', color: colors.text.primary },
-  sensorBadge:     { fontSize: 12, color: colors.primary, fontWeight: '600', marginTop: 1 },
-  sessionDate:     { fontSize: 12, fontWeight: '500', color: colors.text.secondary },
-
-  statsRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.background, borderRadius: 10,
-    paddingVertical: 10, paddingHorizontal: 16,
-  },
-  statItem:    { flex: 1, alignItems: 'center', gap: 3 },
-  statValue:   { fontSize: 18, fontWeight: '800', color: colors.text.primary, letterSpacing: -0.5 },
-  statLabel:   { fontSize: 12, fontWeight: '500', color: colors.text.secondary },
-  statDivider: { width: 1, height: 32, backgroundColor: colors.border },
-
-  detailsBtn:     { alignSelf: 'flex-end' },
-  detailsBtnText: { fontSize: 13, fontWeight: '600', color: colors.primary },
-
-  bottomWrap: {
-    paddingHorizontal: 20, paddingVertical: 14,
+  container: {
+    flex: 1,
     backgroundColor: colors.background,
-    borderTopWidth: 1, borderTopColor: colors.border,
+  },
+
+  /* ── Header ── */
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 4,
+  },
+  backArrow: {
+    fontSize: 32,
+    color: colors.text.primary,
+    fontWeight: '600',
+    lineHeight: 32,
+  },
+  pageTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  headerSpacer: {
+    width: 50,
+  },
+
+  loadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  /* ── Scroll ── */
+  scroll: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 14,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.text.secondary,
+    marginBottom: -4,
+  },
+
+  /* ── Erro ── */
+  errorBox: {
+    backgroundColor: colors.redBackground,
+    borderColor: colors.text.red + '30',
+  },
+  errorText: {
+    color: colors.text.red,
+    fontStyle: 'normal',
+    textAlign: 'center',
+  },
+
+  /* ── Estado vazio ── */
+  emptyCard: {
+    backgroundColor: colors.white,
+    padding: 32,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+  },
+  emptyIcon: {
+    fontSize: 40,
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  /* ── Cartão de sessão ── */
+  sessionCard: {
+    backgroundColor: colors.white,
+    padding: 14,
+    borderWidth: 1,
+    gap: 10,
+  },
+  sessionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  sessionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sessionIcon: {
+    fontSize: 22,
+  },
+  sessionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  sensorBadge: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  sessionDate: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text.secondary,
+  },
+
+  /* ── Estado de sincronização ── */
+  syncBadge: {
+    backgroundColor: colors.text.yellow + '20',
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignSelf: 'flex-start',
+  },
+  syncBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.text.yellow,
+  },
+
+  /* ── Estatísticas ── */
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text.primary,
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text.secondary,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border,
+  },
+
+  detailsBtn: {
+    alignSelf: 'flex-end',
+  },
+  detailsBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+
+  /* ── Rodapé ── */
+  bottomWrap: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   allSessionsBtn: {
-    backgroundColor: colors.secondary, borderRadius: 16,
-    paddingVertical: 16, paddingHorizontal: 20,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.secondary,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: colors.secondary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
   },
   allSessionsBtnText: {
-    fontSize: 17, fontWeight: '700', color: colors.white,
-    flex: 1, textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.white,
+    flex: 1,
+    textAlign: 'center',
   },
   allSessionsArrow: {
-    fontSize: 36, fontWeight: '400', color: colors.white,
-    position: 'absolute', right: 16, lineHeight: 36,
+    fontSize: 36,
+    fontWeight: '400',
+    color: colors.white,
+    position: 'absolute',
+    right: 16,
+    lineHeight: 36,
   },
 });

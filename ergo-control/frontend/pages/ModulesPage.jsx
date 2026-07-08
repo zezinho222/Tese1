@@ -16,8 +16,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
+import syncService from '../syncService';
 
-// ─── Chave AsyncStorage ───────────────────────────────────────────────────────
 const STORAGE_KEY = '@ergocontrol/connected_module';
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
@@ -33,14 +33,16 @@ export default function ModulesPage({ navigation }) {
   const [error, setError]                 = useState('');
   const [showWifiModal, setShowWifiModal] = useState(false);
 
-  // ─── Carregar módulo do AsyncStorage ──────────────────────────────────
+  // ─── Carregar módulo (fonte de verdade local, com tentativa de sync) ──
   const loadModule = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError('');
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      setLocalModule(raw ? JSON.parse(raw) : null);
+      // Tenta sincronizar em segundo plano se houver internet real
+      syncService.trySyncAll(token);
+      const mod = await syncService.getLocalModule();
+      setLocalModule(mod);
     } catch {
       setError('Erro ao carregar módulo.');
     } finally {
@@ -135,6 +137,12 @@ export default function ModulesPage({ navigation }) {
                 </View>
               </View>
 
+              {localModule.synced === false && (
+                <View style={styles.syncBadge}>
+                  <Text style={styles.syncBadgeText}>⏳ Por sincronizar com o servidor</Text>
+                </View>
+              )}
+
               {/* Offset e Frequência */}
               {(localModule.offsetLabel || localModule.freqHz) && (
                 <View style={styles.configRow}>
@@ -224,7 +232,7 @@ export default function ModulesPage({ navigation }) {
             </Text>
             <View style={[sharedStyles.helperBox, { marginBottom: 4 }]}>
               <Text style={[sharedStyles.helperText, { textAlign: 'center', fontStyle: 'normal' }]}>
-                🔐 Rede: <Text style={{ fontWeight: '700', color: colors.text.primary }}>ErgoControl_AP</Text>
+                🔐 Rede: <Text style={{ fontWeight: '700', color: colors.text.primary }}>Wearable EMG</Text>
               </Text>
             </View>
             <TouchableOpacity
@@ -378,6 +386,19 @@ const styles = StyleSheet.create({
   badgeOn: { backgroundColor: colors.secondary + '25' },
   badgeText: { fontSize: 11, fontWeight: '600' },
   badgeTextOn: { color: colors.secondary },
+  syncBadge: {
+    backgroundColor: colors.text.yellow + '20',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginBottom: 12,
+  },
+  syncBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.yellow,
+    textAlign: 'center',
+  },
   configRow: {
     flexDirection: 'row',
     gap: 12,

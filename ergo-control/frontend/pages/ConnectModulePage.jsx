@@ -119,7 +119,8 @@ export default function ConnectModulePage({ navigation }) {
     const sensorString = getSensorString();
 
     // Envia comando FREQ + valor ao módulo
-    moduleService.setFrequency(freqHz);
+    moduleService.sendCommand('FREQ');
+    moduleService.sendCommand(String(freqValue));
 
     // Monta o objecto do módulo
     const moduleData = {
@@ -131,28 +132,21 @@ export default function ConnectModulePage({ navigation }) {
       offsetValue:     selectedOffset.value,
       offsetLabel:     selectedOffset.label,
       freqHz,
-      calibrated:      { sEMG: false, IMU: imuOn }, // IMU auto-calibrado
+      freqValue,
+      calibrated:      { sEMG: false, IMU: imuOn },
       mvc:             null,
-      backendId:       null,
     };
 
-    // Guarda no backend
-    try {
-      const res = await api.addModule(token, moduleData);
-      if (res?.success && res?.module?._id) {
-        moduleData.backendId = res.module._id;
-      }
-    } catch {
-      // Sem internet — continua offline
-    }
+    // Guarda sempre localmente primeiro (offline-first) — não depende de internet
+    await syncService.queueModuleSave(moduleData);
 
-    // Guarda no AsyncStorage
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(moduleData));
+    // Tenta sincronizar já com o backend; se não houver internet, fica para o
+    // listener automático em App.js sincronizar assim que a houver.
+    syncService.trySyncAll(token);
 
     setSaving(false);
     setModalStep(STEP_SELECTION);
 
-    // Volta para a página de Módulos
     navigation.navigate('MainTabs', {
       screen: 'Módulos',
       params: { refresh: Date.now() },
@@ -329,7 +323,7 @@ export default function ConnectModulePage({ navigation }) {
             </View>
             <Text style={styles.modalTitle}>Configuração de Offset</Text>
             <Text style={styles.modalSubtitle}>
-              Escolhe o valor de tensão de referência (offset) para o pré-amplificador sEMG.
+              Escolhe o valor de tensão de referência (offset) para o sEMG.
             </Text>
 
             <View style={styles.optionList}>
@@ -379,7 +373,7 @@ export default function ConnectModulePage({ navigation }) {
               onPress={handleConfirmPot}
               activeOpacity={0.85}
             >
-              <Text style={sharedStyles.primaryButtonText}>Confirmar</Text>
+              <Text style={[sharedStyles.primaryButtonText, { fontSize: 16 }]}>Confirmar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[sharedStyles.primaryButton, sharedStyles.cancelButton]}

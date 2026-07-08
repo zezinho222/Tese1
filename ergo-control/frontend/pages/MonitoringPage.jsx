@@ -16,6 +16,8 @@ import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import moduleService from '../moduleService';
+import syncService from '../syncService';
+
 
 const STORAGE_KEY    = '@ergocontrol/connected_module';
 const DISPLAY_POINTS = 20;  // quantos pontos mostrar no gráfico
@@ -94,7 +96,7 @@ export default function MonitoringPage({ navigation }) {
     return `${m}:${s}`;
   };
 
-  // ── Iniciar monitorização ──────────────────────────────────────────────────
+// ── Iniciar monitorização ──────────────────────────────────────────────────
   const handleStartMonitoring = async () => {
     if (!localModule) {
       setShowNoModModal(true);
@@ -104,13 +106,11 @@ export default function MonitoringPage({ navigation }) {
     const sensorType = localModule.sensorSelection;
     const needsEMG   = sensorType === 'EMG' || sensorType === 'DUAL';
 
-    // Verifica calibração do sEMG se necessário
     if (needsEMG && !localModule.calibrated?.sEMG) {
       setShowNoCal(true);
       return;
     }
 
-    // Garante que o WebSocket está ligado
     if (!moduleService.isConnected()) {
       setError('Módulo não está ligado. Vai à página Módulos e reconecta.');
       return;
@@ -122,17 +122,20 @@ export default function MonitoringPage({ navigation }) {
     setEmgPoints([]);
     setImuPoints([]);
 
-    // Cria sessão no backend
+    // Regista a sessão sempre localmente primeiro — funciona mesmo sem internet
+    // (estás ligado à Wi-Fi do módulo, sem acesso à internet, durante a monitorização)
     const now = new Date();
     startTimeRef.current = now;
-    try {
-      const res = await api.createSession(token, {
-        sensorType,
-        startTime: now.toISOString(),
-        mvc: localModule.mvc ?? null,
-      });
-      sessionIdRef.current = res?.session?._id ?? null;
-    } catch {}
+    const localId = await syncService.queueNewSession({
+      sensorType,
+      startTime: now.toISOString(),
+      mvc: localModule.mvc ?? null,
+    });
+    sessionIdRef.current = localId;
+
+    // Tentativa de sincronização em segundo plano — não bloqueia nem falha visivelmente
+    // se não houver internet; o listener em App.js trata disso mais tarde.
+    syncService.trySyncAll(token);
 
     // Inicia monitorização no serviço (envia EMG / IMU / DUAL)
     moduleService.startMonitoring(sensorType);
@@ -150,22 +153,21 @@ export default function MonitoringPage({ navigation }) {
     stopTimer();
     stopGraphRefresh();
 
-    const { emgBuffer } = moduleService.stopMonitoring(); // envia IDLE internamente
+    moduleService.stopMonitoring(); // envia IDLE internamente
 
     const endTime  = new Date();
     const duration = elapsedSec;
 
-    // Termina sessão no backend
-    try {
-      if (sessionIdRef.current) {
-        await api.endSession(token, sessionIdRef.current, {
-          endTime:    endTime.toISOString(),
-          duration,
-          mvc:        localModule?.mvc ?? null,
-          alertCount: alertCountRef.current,
-        });
-      }
-    } catch {}
+    // Atualiza a sessão local com os dados finais — sempre grava, mesmo offline
+    if (sessionIdRef.current) {
+      await syncService.queueSessionEnd(sessionIdRef.current, {
+        endTime:    endTime.toISOString(),
+        duration,
+        mvc:        localModule?.mvc ?? null,
+        alertCount: alertCountRef.current,
+      });
+      syncService.trySyncAll(token);
+    }
 
     sessionIdRef.current = null;
     setIsMonitoring(false);

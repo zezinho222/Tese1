@@ -4,24 +4,36 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthStack from './navigation/AuthStack';
 import MainTabs from './navigation/MainTabs';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import syncService from './syncService';
 
 function RootNavigator() {
-  const { user, login } = useAuth();
+  const { user, login, token } = useAuth();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const restore = async () => {
       try {
-        const token = await AsyncStorage.getItem('token');
+        const storedToken = await AsyncStorage.getItem('token');
         const userData = await AsyncStorage.getItem('user');
-        if (token && userData) {
-          await login(JSON.parse(userData), token);
+        if (storedToken && userData) {
+          await login(JSON.parse(userData), storedToken);
         }
       } catch (e) {}
       setLoading(false);
     };
     restore();
   }, []);
+
+  // Regista o listener de conectividade uma vez, mantendo sempre o token atual.
+  useEffect(() => {
+    syncService.initNetworkListener(() => token);
+    return () => syncService.stopNetworkListener();
+  }, [token]);
+
+  // Tenta sincronizar logo que houver um token disponível (ex: app reaberta já com internet).
+  useEffect(() => {
+    if (token) syncService.trySyncAll(token);
+  }, [token]);
 
   if (loading) return null;
 
