@@ -9,9 +9,12 @@ import {
   ScrollView,
   Modal,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { LineChart } from 'react-native-gifted-charts';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
@@ -22,6 +25,10 @@ import syncService from '../syncService';
 const STORAGE_KEY    = '@ergocontrol/connected_module';
 const DISPLAY_POINTS = 20;  // quantos pontos mostrar no gráfico
 const REFRESH_MS     = 300; // intervalo de atualização do gráfico
+
+// Largura do gráfico = largura do ecrã menos o padding do ScrollView (20*2)
+// e o padding interno dos cards (16*2)
+const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2;
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
 
@@ -183,66 +190,60 @@ export default function MonitoringPage({ navigation }) {
     };
   }, []);
 
-  // ── Mini gráfico de barras ─────────────────────────────────────────────────
-  const renderBars = (points, barColor) => {
-    if (!points || points.length === 0) {
+  // ── Gráfico de linha — sEMG (mesmo estilo do gráfico IMU) ───────────────────
+  const renderEmgLine = () => {
+    if (!emgPoints || emgPoints.length === 0) {
       return (
         <View style={styles.graphEmpty}>
           <Text style={styles.noDataText}>Sem dados — Inicia a monitorização</Text>
         </View>
       );
     }
-    const maxVal = Math.max(...points, 1);
     return (
-      <View style={styles.barsWrap}>
-        {points.map((v, i) => (
-          <View
-            key={i}
-            style={[
-              styles.bar,
-              {
-                height:          Math.max(2, (v / maxVal) * 60),
-                backgroundColor: barColor,
-                opacity:         0.5 + (i / points.length) * 0.5,
-              },
-            ]}
-          />
-        ))}
-      </View>
+      <LineChart
+        data={emgPoints.map((v) => ({ value: v }))}
+        height={72}
+        width={CHART_WIDTH}
+        color={colors.text.yellow}
+        thickness={2}
+        curved
+        hideDataPoints
+        hideAxesAndRules
+        initialSpacing={0}
+        endSpacing={0}
+        disableScroll
+        adjustToWidth
+      />
     );
   };
 
-  const renderIMUBars = (points) => {
-    if (!points || points.length === 0) {
+  // ── Gráfico de linha — IMU (Pitch, Roll) ────────────────────────────────────
+  const renderImuLine = () => {
+    if (!imuPoints || imuPoints.length === 0) {
       return (
         <View style={styles.graphEmpty}>
           <Text style={styles.noDataText}>Sem dados — Inicia a monitorização</Text>
         </View>
       );
     }
-    const maxVal = Math.max(...points.map((p) => Math.max(...p.map(Math.abs))), 1);
-    const colors3 = [colors.primary, colors.secondary, colors.purple];
+    const axisColors = [colors.primary, colors.secondary]; // Pitch, Roll
     return (
-      <View style={styles.barsWrap}>
-        {points.slice(-DISPLAY_POINTS).map((arr, i) => (
-          <View key={i} style={styles.imuBarGroup}>
-            {arr.slice(0, 3).map((v, j) => (
-              <View
-                key={j}
-                style={[
-                  styles.bar,
-                  {
-                    height:          Math.max(2, (Math.abs(v) / maxVal) * 60),
-                    backgroundColor: colors3[j] || colors.primary,
-                    width:           3,
-                    opacity:         0.6 + (i / points.length) * 0.4,
-                  },
-                ]}
-              />
-            ))}
-          </View>
-        ))}
-      </View>
+      <LineChart
+        dataSet={axisColors.map((axisColor, i) => ({
+          data: imuPoints.map((p) => ({ value: p?.[i] ?? 0 })),
+          color: axisColor,
+        }))}
+        height={72}
+        width={CHART_WIDTH}
+        thickness={2}
+        curved
+        hideDataPoints
+        hideAxesAndRules
+        initialSpacing={0}
+        endSpacing={0}
+        disableScroll
+        adjustToWidth
+      />
     );
   };
 
@@ -290,12 +291,21 @@ export default function MonitoringPage({ navigation }) {
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <View style={styles.cardHeader}>
               <Text style={styles.sectionTitle}>⚡ sEMG — Atividade Muscular</Text>
-              {localModule?.mvc != null && (
-                <Text style={styles.mvcLabel}>MVC: {localModule.mvc.toFixed(2)}</Text>
-              )}
+              <View style={styles.cardHeaderRight}>
+                {localModule?.mvc != null && (
+                  <Text style={styles.mvcLabel}>MVC: {localModule.mvc.toFixed(2)}</Text>
+                )}
+                <TouchableOpacity
+                  style={styles.expandBtn}
+                  onPress={() => navigation.navigate('ChartFullscreen', { type: 'EMG' })}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="expand-outline" size={18} color={colors.text.secondary} />
+                </TouchableOpacity>
+              </View>
             </View>
             <View style={styles.graphArea}>
-              {renderBars(emgPoints, colors.text.yellow)}
+              {renderEmgLine()}
             </View>
             {emgPoints.length > 0 && (
               <Text style={styles.latestValue}>
@@ -308,15 +318,24 @@ export default function MonitoringPage({ navigation }) {
         {/* ── IMU ── */}
         {showIMU && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
-            <Text style={styles.sectionTitle}>🧭 IMU — Dados de Movimento</Text>
+            <View style={styles.cardHeader}>
+              <Text style={styles.sectionTitle}>🧭 IMU — Dados de Movimento</Text>
+              <TouchableOpacity
+                style={styles.expandBtn}
+                onPress={() => navigation.navigate('ChartFullscreen', { type: 'IMU' })}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="expand-outline" size={18} color={colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
             <View style={styles.graphArea}>
-              {renderIMUBars(imuPoints)}
+              {renderImuLine()}
             </View>
             {imuPoints.length > 0 && (
               <View style={styles.imuValuesRow}>
-                {['X', 'Y', 'Z'].map((ax, i) => (
+                {['Pitch', 'Roll'].map((ax, i) => (
                   <View key={ax} style={styles.imuValue}>
-                    <Text style={[styles.imuAxis, { color: [colors.primary, colors.secondary, colors.purple][i] }]}>
+                    <Text style={[styles.imuAxis, { color: [colors.primary, colors.secondary][i] }]}>
                       {ax}
                     </Text>
                     <Text style={styles.imuVal}>
@@ -513,23 +532,19 @@ const styles = StyleSheet.create({
 
   sectionCard: { backgroundColor: colors.white, padding: 16, borderWidth: 1 },
   cardHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text.primary },
   mvcLabel:     { fontSize: 12, color: colors.primary, fontWeight: '600' },
+  expandBtn:    { padding: 4 },
 
   graphArea: {
     height: 72, backgroundColor: colors.background,
     borderRadius: 10, borderWidth: 1, borderColor: colors.border,
-    overflow: 'hidden',
+    overflow: 'hidden', justifyContent: 'center',
   },
   graphEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   noDataText: { fontSize: 13, color: colors.text.secondary, fontWeight: '500' },
-  barsWrap: {
-    flex: 1, flexDirection: 'row',
-    alignItems: 'flex-end', paddingHorizontal: 6, paddingBottom: 4, gap: 2,
-  },
-  bar: { flex: 1, borderRadius: 2, minHeight: 2 },
 
-  imuBarGroup:   { flex: 1, flexDirection: 'row', alignItems: 'flex-end', gap: 1 },
   latestValue:   { fontSize: 12, color: colors.text.secondary, marginTop: 6, textAlign: 'right' },
   imuValuesRow:  { flexDirection: 'row', justifyContent: 'space-evenly', marginTop: 8 },
   imuValue:      { alignItems: 'center', gap: 2 },

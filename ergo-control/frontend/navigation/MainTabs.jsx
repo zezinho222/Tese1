@@ -14,6 +14,7 @@ import PersonalDataPage from '../pages/PersonalDataPage';
 import NotificationsPage from '../pages/NotificationsPage';
 import ConnectModulePage from '../pages/ConnectModulePage';
 import ScanModulesPage   from '../pages/ScanModulesPage';
+import ChartFullscreenPage from '../pages/ChartFullscreenPage';
 
 
 const Tab = createBottomTabNavigator();
@@ -66,6 +67,7 @@ export default function MainTabs() {
       <Stack.Screen name="Notifications" component={NotificationsPage} />
       <Stack.Screen name="ConnectModule" component={ConnectModulePage} />
       <Stack.Screen name="ScanModules"   component={ScanModulesPage} />
+      <Stack.Screen name="ChartFullscreen" component={ChartFullscreenPage} options={{ orientation: 'landscape', animation: 'fade' }} />
     </Stack.Navigator>
   );
 }
