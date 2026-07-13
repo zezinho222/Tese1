@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,10 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
+import syncService from '../syncService';
 
 const cards = [
   {
@@ -43,14 +45,86 @@ const cards = [
   },
 ];
 
-const resumo = [
-  { label: 'Sessões', value: '3' },
-  { label: 'Alertas', value: '18' },
-  { label: 'Tempo', value: '4h' },
-];
+// Formata a duração total (em segundos) de forma compacta para o cartão de resumo.
+function formatDurationShort(sec) {
+  if (!sec) return '0m';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+// Verdadeiro se a data ISO fornecida cair no mesmo dia de calendário que "now".
+function isSameDay(isoStr, now) {
+  if (!isoStr) return false;
+  const d = new Date(isoStr);
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
 
 export default function DataPage({ navigation }) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+
+  const [resumo, setResumo] = useState([
+    { label: 'Sessões', value: '0' },
+    { label: 'Alertas', value: '0' },
+    { label: 'Tempo', value: '0m' },
+  ]);
+
+  const midnightTimeoutRef = useRef(null);
+
+  // ── Calcula o resumo de hoje a partir das sessões guardadas ───────────────
+  const loadResumo = useCallback(async () => {
+    try {
+      const sessions = await syncService.getMergedSessions(token);
+      const now = new Date();
+      const todaySessions = sessions.filter((s) => isSameDay(s.startTime, now));
+
+      const totalAlerts = todaySessions.reduce((sum, s) => sum + (s.alertCount ?? 0), 0);
+      const totalDuration = todaySessions.reduce((sum, s) => sum + (s.duration ?? 0), 0);
+
+      setResumo([
+        { label: 'Sessões', value: String(todaySessions.length) },
+        { label: 'Alertas', value: String(totalAlerts) },
+        { label: 'Tempo', value: formatDurationShort(totalDuration) },
+      ]);
+    } catch {
+      // mantém o resumo anterior em caso de erro (ex: sem sessões locais ainda)
+    }
+  }, [token]);
+
+  // Recarrega sempre que a página ganha foco (ex: voltar de uma sessão terminada).
+  useFocusEffect(
+    useCallback(() => {
+      loadResumo();
+    }, [loadResumo])
+  );
+
+  // Agenda um recálculo automático à meia-noite, para o "Resumo de Hoje"
+  // fazer reset mesmo que o ecrã fique aberto de um dia para o outro.
+  useEffect(() => {
+    function scheduleMidnightReload() {
+      const now = new Date();
+      const nextMidnight = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+        0, 0, 5 // pequena margem de segurança após a meia-noite
+      );
+      const ms = nextMidnight - now;
+
+      midnightTimeoutRef.current = setTimeout(() => {
+        loadResumo();
+        scheduleMidnightReload();
+      }, ms);
+    }
+
+    scheduleMidnightReload();
+    return () => clearTimeout(midnightTimeoutRef.current);
+  }, [loadResumo]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -59,7 +133,7 @@ export default function DataPage({ navigation }) {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Olá 👋,</Text>
-          <Text style={styles.name}>{user?.name || 'Utilizador'}</Text>
+          <Text style={[styles.name, { fontSize: 20 }]}>{user?.name || 'Utilizador'}</Text>
         </View>
       </View>
 
