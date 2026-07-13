@@ -137,30 +137,73 @@ export default function ChartFullscreenPage({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 8,
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
-  backButton:   { padding: 8 },
-  title:        { fontSize: 16, fontWeight: '700', color: colors.text.primary },
-  headerSpacer: { width: 42 },
 
+  /* ── Header ── */
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  backButton: {
+    padding: 8,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  headerSpacer: {
+    width: 42,
+  },
+
+  /* ── Gráfico ── */
   chartWrap: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 8,
   },
-  graphEmpty: { justifyContent: 'center', alignItems: 'center' },
-  noDataText: { fontSize: 14, color: colors.text.secondary, fontWeight: '500' },
+  graphEmpty: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noDataText: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    fontWeight: '500',
+  },
 
+  /* ── Legenda (IMU) ── */
   legendRow: {
-    flexDirection: 'row', justifyContent: 'center', gap: 32,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
     paddingBottom: 16,
   },
-  legendItem:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot:    { width: 10, height: 10, borderRadius: 5 },
-  legendLabel:  { fontSize: 13, fontWeight: '600', color: colors.text.secondary },
-  legendValue:  { fontSize: 13, fontWeight: '700', color: colors.text.primary },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  legendValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
 });

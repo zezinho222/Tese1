@@ -491,113 +491,295 @@ export default function MonitoringPage({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
 
+  /* ── Header ── */
   header: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 4,
+    paddingHorizontal: 20,
+    paddingTop: 4,
   },
-  backArrow:    { fontSize: 32, color: colors.text.primary, fontWeight: '600', lineHeight: 32 },
-  pageTitle:    { fontSize: 20, fontWeight: '700', color: colors.text.primary },
-  headerSpacer: { width: 50 },
+  backArrow: {
+    fontSize: 32,
+    color: colors.text.primary,
+    fontWeight: '600',
+    lineHeight: 32,
+  },
+  pageTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  headerSpacer: {
+    width: 50,
+  },
 
+  /* ── Status bar ── */
   statusRow: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
-  statusLabel: { fontSize: 13, color: colors.text.secondary, fontWeight: '600' },
+  statusLabel: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    fontWeight: '600',
+  },
   statusBadge: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, gap: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 6,
   },
-  statusBadgeIdle:       { backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border },
-  statusBadgeActive:     { backgroundColor: colors.secondary + '25', borderWidth: 1, borderColor: colors.secondary + '80' },
-  statusDot:             { width: 7, height: 7, borderRadius: 4 },
-  statusDotIdle:         { backgroundColor: colors.text.secondary },
-  statusDotActive:       { backgroundColor: colors.secondary },
-  statusBadgeText:       { fontSize: 12, fontWeight: '600' },
-  statusBadgeTextIdle:   { color: colors.text.secondary },
-  statusBadgeTextActive: { color: colors.secondary },
+  statusBadgeIdle: {
+    backgroundColor: colors.cardBg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  statusBadgeActive: {
+    backgroundColor: colors.secondary + '25',
+    borderWidth: 1,
+    borderColor: colors.secondary + '80',
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  statusDotIdle: {
+    backgroundColor: colors.text.secondary,
+  },
+  statusDotActive: {
+    backgroundColor: colors.secondary,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statusBadgeTextIdle: {
+    color: colors.text.secondary,
+  },
+  statusBadgeTextActive: {
+    color: colors.secondary,
+  },
 
+  /* ── Error ── */
   errorBox: {
     backgroundColor: colors.redBackground,
     borderColor: colors.text.red + '30',
-    marginHorizontal: 20, marginBottom: 4,
+    marginHorizontal: 20,
+    marginBottom: 4,
   },
-  errorText: { color: colors.text.red, fontStyle: 'normal', textAlign: 'center' },
+  errorText: {
+    color: colors.text.red,
+    fontStyle: 'normal',
+    textAlign: 'center',
+  },
 
-  scroll: { paddingHorizontal: 20, paddingBottom: 16, gap: 14 },
+  /* ── Scroll ── */
+  scroll: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 14,
+  },
 
-  sectionCard: { backgroundColor: colors.white, padding: 16, borderWidth: 1 },
-  cardHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text.primary },
-  mvcLabel:     { fontSize: 12, color: colors.primary, fontWeight: '600' },
-  expandBtn:    { padding: 4 },
+  /* ── Cards de sensor ── */
+  sectionCard: {
+    backgroundColor: colors.white,
+    padding: 16,
+    borderWidth: 1,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  cardHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  mvcLabel: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  expandBtn: {
+    padding: 4,
+  },
 
+  /* ── Gráfico ── */
   graphArea: {
-    height: 72, backgroundColor: colors.background,
-    borderRadius: 10, borderWidth: 1, borderColor: colors.border,
-    overflow: 'hidden', justifyContent: 'center',
-  },
-  graphEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  noDataText: { fontSize: 13, color: colors.text.secondary, fontWeight: '500' },
-
-  latestValue:   { fontSize: 12, color: colors.text.secondary, marginTop: 6, textAlign: 'right' },
-  imuValuesRow:  { flexDirection: 'row', justifyContent: 'space-evenly', marginTop: 8 },
-  imuValue:      { alignItems: 'center', gap: 2 },
-  imuAxis:       { fontSize: 11, fontWeight: '700' },
-  imuVal:        { fontSize: 14, fontWeight: '700', color: colors.text.primary },
-
-  emptyCard: {
-    backgroundColor: colors.white, padding: 32,
-    alignItems: 'center', gap: 10, borderWidth: 1,
-  },
-  emptyIcon:     { fontSize: 40, marginBottom: 4 },
-  emptyTitle:    { fontSize: 17, fontWeight: '700', color: colors.text.primary, textAlign: 'center' },
-  emptySubtitle: { fontSize: 13, color: colors.text.secondary, textAlign: 'center', lineHeight: 20 },
-
-  statsCard: {
-    backgroundColor: colors.white, borderWidth: 1,
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-evenly', paddingVertical: 16,
-  },
-  statItem:    { alignItems: 'center', gap: 4 },
-  statValue:   { fontSize: 22, fontWeight: '800', color: colors.text.primary, letterSpacing: -0.5 },
-  statLabel:   { fontSize: 12, fontWeight: '500', color: colors.text.secondary },
-  statDivider: { width: 1, height: 40, backgroundColor: colors.border },
-
-  bottomWrap: {
-    paddingHorizontal: 20, paddingVertical: 14,
+    height: 72,
     backgroundColor: colors.background,
-    borderTopWidth: 1, borderTopColor: colors.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  graphEmpty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noDataText: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    fontWeight: '500',
+  },
+
+  latestValue: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginTop: 6,
+    textAlign: 'right',
+  },
+  imuValuesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    marginTop: 8,
+  },
+  imuValue: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  imuAxis: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  imuVal: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+
+  /* ── Empty state ── */
+  emptyCard: {
+    backgroundColor: colors.white,
+    padding: 32,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+  },
+  emptyIcon: {
+    fontSize: 40,
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  /* ── Estatísticas de sessão ── */
+  statsCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+    paddingVertical: 16,
+  },
+  statItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.text.primary,
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text.secondary,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border,
+  },
+
+  /* ── Botão Iniciar / Parar ── */
+  bottomWrap: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   startBtn: {
-    borderRadius: 16, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
-  stopBtn:      { backgroundColor: colors.text.red, shadowColor: colors.text.red },
-  startBtnIcon: { fontSize: 14, color: colors.white },
+  stopBtn: {
+    backgroundColor: colors.text.red,
+    shadowColor: colors.text.red,
+  },
+  startBtnIcon: {
+    fontSize: 14,
+    color: colors.white,
+  },
 
+  /* ── Modais ── */
   overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center', alignItems: 'center',
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 32,
   },
   modalCard: {
-    width: '100%', backgroundColor: colors.white,
-    borderRadius: 20, paddingHorizontal: 24,
-    paddingTop: 28, paddingBottom: 24, gap: 12,
+    width: '100%',
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 24,
+    gap: 12,
   },
-  modalEmoji: { fontSize: 40, textAlign: 'center' },
+  modalEmoji: {
+    fontSize: 40,
+    textAlign: 'center',
+  },
   modalTitle: {
-    fontSize: 18, fontWeight: '800', color: colors.text.primary,
-    textAlign: 'center', lineHeight: 26,
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text.primary,
+    textAlign: 'center',
+    lineHeight: 26,
   },
   modalSubtitle: {
-    fontSize: 14, color: colors.text.secondary,
-    textAlign: 'center', lineHeight: 22,
+    fontSize: 14,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });

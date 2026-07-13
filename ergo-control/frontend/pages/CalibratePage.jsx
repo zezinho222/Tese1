@@ -436,106 +436,227 @@ export default function CalibratePage({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingHorizontal: 20,
+  },
 
   /* ── Header ── */
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
   },
-  backArrow:    { fontSize: 32, color: colors.text.primary, fontWeight: '600', lineHeight: 32 },
-  pageTitle:    { fontSize: 20, fontWeight: '700', color: colors.text.primary },
-  headerSpacer: { width: 50 },
+  backArrow: {
+    fontSize: 32,
+    color: colors.text.primary,
+    fontWeight: '600',
+    lineHeight: 32,
+  },
+  pageTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  headerSpacer: {
+    width: 50,
+  },
 
   /* ── Loading ── */
-  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   /* ── Scroll ── */
-  scroll: { paddingBottom: 32, gap: 14 },
+  scroll: {
+    paddingBottom: 32,
+    gap: 14,
+  },
 
   /* ── Section label ── */
   sectionTitle: {
-    fontSize: 14, fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.text.secondary,
-    marginBottom: 12, marginTop: 8,
-    textTransform: 'uppercase', letterSpacing: 0.8,
+    marginBottom: 12,
+    marginTop: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
 
   /* ── Error ── */
-  errorBox: { backgroundColor: colors.redBackground, borderColor: colors.text.red + '30' },
-  errorText: { color: colors.text.red, fontStyle: 'normal', textAlign: 'center' },
+  errorBox: {
+    backgroundColor: colors.redBackground,
+    borderColor: colors.text.red + '30',
+  },
+  errorText: {
+    color: colors.text.red,
+    fontStyle: 'normal',
+    textAlign: 'center',
+  },
 
   /* ── Empty state ── */
   emptyCard: {
-    backgroundColor: colors.white, padding: 32,
-    alignItems: 'center', gap: 10, borderWidth: 1,
+    backgroundColor: colors.white,
+    padding: 32,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
   },
-  emptyIcon:     { fontSize: 40, marginBottom: 4 },
-  emptyTitle:    { fontSize: 17, fontWeight: '700', color: colors.text.primary, textAlign: 'center' },
-  emptySubtitle: { fontSize: 13, color: colors.text.secondary, textAlign: 'center', lineHeight: 20 },
+  emptyIcon: {
+    fontSize: 40,
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 
   /* ── Cards ── */
-  sensorGroup: { gap: 12 },
+  sensorGroup: {
+    gap: 12,
+  },
   sensorCard: {
     backgroundColor: colors.white,
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 18, paddingRight: 16, borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 18,
+    paddingRight: 16,
+    borderWidth: 1,
   },
-  iconCircle: { marginRight: 14, marginLeft: 10 },
-  cardText:   { flex: 1 },
-  cardTitle:    { fontSize: 17, fontWeight: '700', color: colors.text.primary },
-  cardSubtitle: { fontSize: 13, color: colors.text.secondary, marginTop: 3 },
-  mvcText:      { fontSize: 12, color: colors.primary, fontWeight: '600', marginTop: 3 },
-  autoText:     { fontSize: 12, color: colors.secondary, fontWeight: '500', marginTop: 3 },
+  iconCircle: {
+    marginRight: 14,
+    marginLeft: 10,
+  },
+  cardText: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    marginTop: 3,
+  },
+  mvcText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  autoText: {
+    fontSize: 12,
+    color: colors.secondary,
+    fontWeight: '500',
+    marginTop: 3,
+  },
 
   /* ── Calibrated badge ── */
   okBadge: {
-    backgroundColor: colors.secondary + '25', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5, alignItems: 'center',
+    backgroundColor: colors.secondary + '25',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignItems: 'center',
   },
-  okBadgeText: { fontSize: 13, fontWeight: '700', color: colors.secondary },
+  okBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
 
   /* ── Calibrar button ── */
   calibrateBtn: {
-    backgroundColor: colors.yellowBackground, borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: colors.text.yellow,
+    backgroundColor: colors.yellowBackground,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.text.yellow,
   },
-  calibrateBtnText: { fontSize: 13, fontWeight: '700', color: colors.text.yellow },
+  calibrateBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.yellow,
+  },
 
   recalibrateBtn: {
-    marginTop: 6, paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 6, backgroundColor: colors.background,
-    borderWidth: 1, borderColor: colors.border, alignItems: 'center',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
   },
-  recalibrateBtnText: { fontSize: 11, fontWeight: '600', color: colors.text.secondary },
+  recalibrateBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
 
   /* ── Modais ── */
   overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center', alignItems: 'center',
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 32,
   },
   modalCard: {
-    width: '100%', backgroundColor: colors.white,
-    borderRadius: 20, paddingHorizontal: 24,
-    paddingTop: 28, paddingBottom: 24, gap: 12, alignItems: 'center',
+    width: '100%',
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 24,
+    gap: 12,
+    alignItems: 'center',
   },
-  modalEmoji:    { fontSize: 44, marginBottom: 4 },
+  modalEmoji: {
+    fontSize: 44,
+    marginBottom: 4,
+  },
   modalTitle: {
-    fontSize: 20, fontWeight: '800', color: colors.text.primary,
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text.primary,
     textAlign: 'center',
   },
   modalSubtitle: {
-    fontSize: 14, color: colors.text.secondary,
-    textAlign: 'center', lineHeight: 22,
+    fontSize: 14,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   countdownText: {
-    fontSize: 52, fontWeight: '900', color: colors.primary,
-    letterSpacing: -2, lineHeight: 64,
+    fontSize: 52,
+    fontWeight: '900',
+    color: colors.primary,
+    letterSpacing: -2,
+    lineHeight: 64,
   },
   recDot: {
-    width: 16, height: 16, borderRadius: 8,
-    backgroundColor: colors.text.red, marginBottom: 4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.text.red,
+    marginBottom: 4,
   },
 });
