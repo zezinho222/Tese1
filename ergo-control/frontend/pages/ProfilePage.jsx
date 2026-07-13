@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,15 +8,20 @@ import {
   StatusBar,
   ScrollView,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
+import syncService from '../syncService';
 
-const stats = [
-  { label: 'Sessões', value: '47' },
-  { label: 'Monitorizadas', value: '38h' },
-  { label: 'Alertas', value: '95' },
-];
+// Converte segundos totais de monitorização em algo tipo "38h 20m" ou "45m"
+function formatTotalDuration(totalSeconds) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
+}
 
 const settings = [
   {
@@ -34,8 +39,34 @@ const settings = [
 ];
 
 export default function ProfilePage({ navigation }) {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [stats, setStats] = useState([
+    { label: 'Sessões', value: '—' },
+    { label: 'Monitorizadas', value: '—' },
+    { label: 'Alertas', value: '—' },
+  ]);
+
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const sessions = await syncService.getMergedSessions(token);
+      const totalDuration = sessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+      const totalAlerts = sessions.reduce((sum, s) => sum + (s.alertCount || 0), 0);
+      setStats([
+        { label: 'Sessões', value: String(sessions.length) },
+        { label: 'Monitorizadas', value: formatTotalDuration(totalDuration) },
+        { label: 'Alertas', value: String(totalAlerts) },
+      ]);
+    } catch {
+      // sem internet real e sem dados locais — mantém os valores atuais
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [token]);
+
+  useFocusEffect(useCallback(() => { loadStats(); }, [loadStats]));
 
   const initials = user?.name
     ?.split(' ')
@@ -59,7 +90,11 @@ export default function ProfilePage({ navigation }) {
         <View style={styles.statsRow}>
           {stats.map((s) => (
             <View key={s.label} style={[sharedStyles.card, styles.statItem]}>
-              <Text style={styles.statValue}>{s.value}</Text>
+              {statsLoading ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text style={styles.statValue}>{s.value}</Text>
+              )}
               <Text style={styles.statLabel}>{s.label}</Text>
             </View>
           ))}

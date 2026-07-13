@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,24 +8,96 @@ import {
   StatusBar,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
+import { useAuth } from '../context/AuthContext';
+import syncService from '../syncService';
 import ExcelIcon from '../assets/excel.png';
 import PdfIcon from '../assets/pdf.png';
 
-// Dados mock — substituir por dados reais via props/route
-const mockSession = {
-  id: 47,
-  date: '11 Mar 2026',
-  start: '08:30',
-  duration: '1h 12m',
-  modules: 'sEMG, IMU',
-  alerts: 3,
-};
+const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
+
+function formatDateOnly(isoStr) {
+  if (!isoStr) return '—';
+  const d = new Date(isoStr);
+  return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatTime(isoStr) {
+  if (!isoStr) return '—';
+  const d = new Date(isoStr);
+  return d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDuration(sec) {
+  if (!sec) return '0m';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}m`;
+  return `${m}m`;
+}
 
 export default function HistoryDetailPage({ navigation, route }) {
-  const sessionId = route?.params?.sessionId ?? mockSession.id;
-  const session = mockSession; // trocar por fetch real se necessário
+  const { token } = useAuth();
+  const sessionId = route?.params?.sessionId;
+
+  const [session, setSession]             = useState(null);
+  const [sessionNumber, setSessionNumber] = useState(null);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState('');
+
+  const loadSession = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const sessions = await syncService.getMergedSessions(token); // ordenadas da mais recente para a mais antiga
+      const idx = sessions.findIndex((s) => s.localId === sessionId);
+      if (idx === -1) {
+        setError('Sessão não encontrada.');
+        setSession(null);
+      } else {
+        setSession(sessions[idx]);
+        setSessionNumber(sessions.length - idx);
+      }
+    } catch {
+      setError('Erro ao carregar a sessão.');
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionId, token]);
+
+  useFocusEffect(useCallback(() => { loadSession(); }, [loadSession]));
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !session) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={sharedStyles.backButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.backArrow}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.pageTitle}>Sessão</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        <View style={styles.loadingWrap}>
+          <Text style={styles.metaLabel}>{error || 'Sessão não encontrada.'}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const sensorLabel = SENSOR_LABELS[session.sensorType] || session.sensorType;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -39,7 +111,7 @@ export default function HistoryDetailPage({ navigation, route }) {
         >
           <Text style={styles.backArrow}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.pageTitle}>Sessão #{sessionId}</Text>
+        <Text style={styles.pageTitle}>Sessão #{sessionNumber}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -54,29 +126,29 @@ export default function HistoryDetailPage({ navigation, route }) {
           <View style={styles.gridRow}>
             <View style={styles.gridItem}>
               <Text style={styles.metaLabel}>Data</Text>
-              <Text style={styles.metaValue}>{session.date}</Text>
+              <Text style={styles.metaValue}>{formatDateOnly(session.startTime)}</Text>
             </View>
             <View style={styles.gridItem}>
               <Text style={styles.metaLabel}>Início</Text>
-              <Text style={styles.metaValue}>{session.start}</Text>
+              <Text style={styles.metaValue}>{formatTime(session.startTime)}</Text>
             </View>
           </View>
 
           <View style={styles.gridRow}>
             <View style={styles.gridItem}>
               <Text style={styles.metaLabel}>Duração</Text>
-              <Text style={styles.metaValue}>{session.duration}</Text>
+              <Text style={styles.metaValue}>{formatDuration(session.duration)}</Text>
             </View>
             <View style={styles.gridItem}>
               <Text style={styles.metaLabel}>Módulos</Text>
-              <Text style={styles.metaValue}>{session.modules}</Text>
+              <Text style={styles.metaValue}>{sensorLabel}</Text>
             </View>
           </View>
 
           <View style={styles.gridRow}>
             <View style={styles.gridItem}>
               <Text style={styles.metaLabel}>Alertas</Text>
-              <Text style={styles.metaValue}>{session.alerts}</Text>
+              <Text style={styles.metaValue}>{session.alertCount ?? 0}</Text>
             </View>
           </View>
         </View>
@@ -168,6 +240,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+
+  loadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
 
   /* ── Header ── */
