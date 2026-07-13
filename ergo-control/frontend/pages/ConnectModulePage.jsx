@@ -92,6 +92,9 @@ export default function ConnectModulePage({ navigation }) {
       setError('Seleciona pelo menos um sensor.');
       return;
     }
+
+    moduleService.sendCommand('Olá');
+
     setError('');
     setSelectedOffset(null);
     setModalStep(STEP_POT);
