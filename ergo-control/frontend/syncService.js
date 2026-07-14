@@ -90,23 +90,31 @@ async function hasInternet() {
  * se estiveres sem internet).
  */
 async function queueNewSession({ sensorType, startTime, mvc }) {
-  const sessions = await readSessions();
   const localId = generateLocalId();
-  const entry = {
-    localId,
-    backendId: null,
-    synced: false,
-    sensorType,
-    startTime,
-    endTime: null,
-    duration: null,
-    mvc: mvc ?? null,
-    alertCount: 0,
-    emgData: [],
-    imuData: [],
-  };
-  sessions.unshift(entry);
-  await writeSessions(sessions);
+  try {
+    const sessions = await readSessions();
+    const entry = {
+      localId,
+      backendId: null,
+      synced: false,
+      sensorType,
+      startTime,
+      endTime: null,
+      duration: null,
+      mvc: mvc ?? null,
+      alertCount: 0,
+      emgData: [],
+      imuData: [],
+    };
+    sessions.unshift(entry);
+    await writeSessions(sessions);
+  } catch (e) {
+    // Não deixa uma falha a gravar localmente impedir o arranque da
+    // monitorização em si — sem isto, um erro aqui abortava
+    // handleStartMonitoring ANTES de moduleService.startMonitoring() ser
+    // chamado, e os gráficos ficavam "Sem dados" sem nenhum erro visível.
+    console.warn('[syncService] Falha ao gravar sessão localmente:', e);
+  }
   return localId;
 }
 
