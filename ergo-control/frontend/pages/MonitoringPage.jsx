@@ -160,18 +160,22 @@ export default function MonitoringPage({ navigation }) {
     stopTimer();
     stopGraphRefresh();
 
-    moduleService.stopMonitoring(); // envia IDLE internamente
+    const { emgBuffer, imuBuffer } = moduleService.stopMonitoring(); // envia IDLE internamente
 
     const endTime  = new Date();
     const duration = elapsedSec;
 
-    // Atualiza a sessão local com os dados finais — sempre grava, mesmo offline
+    // Atualiza a sessão local com os dados finais — sempre grava, mesmo offline.
+    // Os buffers são reduzidos (downsample) antes de guardar, para não gravar
+    // sessões inteiras ao segundo (podem ter milhares de amostras).
     if (sessionIdRef.current) {
       await syncService.queueSessionEnd(sessionIdRef.current, {
         endTime:    endTime.toISOString(),
         duration,
         mvc:        localModule?.mvc ?? null,
         alertCount: alertCountRef.current,
+        emgData:    syncService.downsampleArray(emgBuffer),
+        imuData:    syncService.downsampleArray(imuBuffer),
       });
       syncService.trySyncAll(token);
     }

@@ -181,7 +181,7 @@ export default function HistoryPage({ navigation }) {
         </ScrollView>
       )}
 
-      {/* ── Botão ver todas ── */}
+      {/* ── Botão ver todas ── 
       {!loading && sessions.length > 0 && (
         <View style={styles.bottomWrap}>
           <TouchableOpacity
@@ -193,7 +193,7 @@ export default function HistoryPage({ navigation }) {
             <Text style={styles.allSessionsArrow}>›</Text>
           </TouchableOpacity>
         </View>
-      )}
+      )}*/}
     </SafeAreaView>
   );
 }

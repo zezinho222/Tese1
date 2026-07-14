@@ -49,6 +49,16 @@ const sessionSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Dados do gráfico (amostra reduzida — máx. 200 pontos, para visualização no histórico)
+    emgData: {
+      type: [Number],
+      default: [],
+    },
+    imuData: {
+      // cada elemento é [pitch, roll]
+      type: [[Number]],
+      default: [],
+    },
   },
   { timestamps: true }
 );

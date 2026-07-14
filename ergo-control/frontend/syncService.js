@@ -20,6 +20,7 @@ import { api } from './api';
 
 const SESSIONS_KEY = '@ergocontrol/sessions';
 const MODULE_KEY   = '@ergocontrol/connected_module';
+const MAX_CHART_POINTS = 200; // limite de pontos guardados por sessão, para gráficos
 
 let syncing = false;              // evita sincronizações concorrentes
 let netUnsubscribe = null;
@@ -28,6 +29,21 @@ let tokenGetter = () => null;     // função que devolve o token atual (evita c
 // ─── Helpers ──────────────────────────────────────────────────────────────
 function generateLocalId() {
   return `local_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Reduz um array para no máximo maxPoints, escolhendo índices espaçados
+ * uniformemente — usado para não guardar/sincronizar sessões inteiras
+ * (podem ter milhares de amostras por segundo).
+ */
+function downsampleArray(arr, maxPoints = MAX_CHART_POINTS) {
+  if (!Array.isArray(arr) || arr.length <= maxPoints) return arr || [];
+  const step = arr.length / maxPoints;
+  const result = [];
+  for (let i = 0; i < maxPoints; i++) {
+    result.push(arr[Math.floor(i * step)]);
+  }
+  return result;
 }
 
 async function readSessions() {
@@ -86,14 +102,20 @@ async function queueNewSession({ sensorType, startTime, mvc }) {
     duration: null,
     mvc: mvc ?? null,
     alertCount: 0,
+    emgData: [],
+    imuData: [],
   };
   sessions.unshift(entry);
   await writeSessions(sessions);
   return localId;
 }
 
-/** Atualiza uma sessão local com os dados de fim (chamado ao parar a monitorização). */
-async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount }) {
+/**
+ * Atualiza uma sessão local com os dados de fim (chamado ao parar a
+ * monitorização) — incluindo os dados dos gráficos (já reduzidos com
+ * downsampleArray antes de chegarem aqui).
+ */
+async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount, emgData, imuData }) {
   const sessions = await readSessions();
   const idx = sessions.findIndex((s) => s.localId === localId);
   if (idx === -1) return;
@@ -103,6 +125,8 @@ async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount }) 
     duration,
     mvc: mvc ?? sessions[idx].mvc,
     alertCount,
+    emgData: emgData ?? sessions[idx].emgData ?? [],
+    imuData: imuData ?? sessions[idx].imuData ?? [],
     synced: false, // força reenvio do estado final ao backend
   };
   await writeSessions(sessions);
@@ -142,6 +166,8 @@ async function pullRemoteSessions(token) {
         duration: remote.duration ?? null,
         mvc: remote.mvc ?? null,
         alertCount: remote.alertCount ?? 0,
+        emgData: remote.emgData ?? [],
+        imuData: remote.imuData ?? [],
       }));
 
     if (newOnes.length > 0) {
@@ -183,6 +209,8 @@ async function syncSessions(token) {
           duration: s.duration,
           mvc: s.mvc,
           alertCount: s.alertCount,
+          emgData: s.emgData || [],
+          imuData: s.imuData || [],
         });
         if (res2?.success) {
           s.synced = true;
@@ -288,6 +316,7 @@ export const syncService = {
   initNetworkListener,
   stopNetworkListener,
   hasInternet,
+  downsampleArray,
 };
 
 export default syncService;

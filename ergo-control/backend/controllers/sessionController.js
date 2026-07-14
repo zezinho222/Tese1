@@ -72,12 +72,14 @@ const endSession = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Sessão não encontrada.' });
     }
 
-    const { endTime, duration, mvc, alertCount } = req.body;
+    const { endTime, duration, mvc, alertCount, emgData, imuData } = req.body;
 
     session.endTime    = endTime    ? new Date(endTime) : new Date();
     session.duration   = duration   ?? session.duration;
     session.mvc        = mvc        ?? session.mvc;
     session.alertCount = alertCount ?? session.alertCount;
+    if (Array.isArray(emgData)) session.emgData = emgData;
+    if (Array.isArray(imuData)) session.imuData = imuData;
 
     await session.save();
     res.status(200).json({ success: true, session });
