@@ -9,8 +9,10 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { LineChart } from 'react-native-gifted-charts';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import syncService from '../syncService';
@@ -18,6 +20,10 @@ import ExcelIcon from '../assets/excel.png';
 import PdfIcon from '../assets/pdf.png';
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
+
+// Largura do gráfico = largura do ecrã menos o padding do ScrollView (20*2)
+// e o padding interno dos cards (16*2)
+const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2;
 
 function formatDateOnly(isoStr) {
   if (!isoStr) return '—';
@@ -98,6 +104,68 @@ export default function HistoryDetailPage({ navigation, route }) {
   }
 
   const sensorLabel = SENSOR_LABELS[session.sensorType] || session.sensorType;
+  const showEMG = session.sensorType === 'EMG' || session.sensorType === 'DUAL';
+  const showIMU = session.sensorType === 'IMU' || session.sensorType === 'DUAL';
+
+  const emgData = Array.isArray(session.emgData) ? session.emgData : [];
+  const imuData = Array.isArray(session.imuData) ? session.imuData : [];
+
+  // ── Gráfico de linha — sEMG (mesmo estilo do gráfico da Monitorização) ──────
+  const renderEmgLine = () => {
+    if (!emgData.length) {
+      return (
+        <View style={styles.graphEmptyReal}>
+          <Text style={styles.noDataText}>Sem dados de gráfico guardados para esta sessão</Text>
+        </View>
+      );
+    }
+    return (
+      <LineChart
+        data={emgData.map((v) => ({ value: v }))}
+        height={80}
+        width={CHART_WIDTH}
+        color={colors.text.yellow}
+        thickness={2}
+        curved
+        hideDataPoints
+        hideAxesAndRules
+        initialSpacing={0}
+        endSpacing={0}
+        disableScroll
+        adjustToWidth
+      />
+    );
+  };
+
+  // ── Gráfico de linha — IMU (Pitch, Roll) ────────────────────────────────────
+  const renderImuLine = () => {
+    if (!imuData.length) {
+      return (
+        <View style={styles.graphEmptyReal}>
+          <Text style={styles.noDataText}>Sem dados de gráfico guardados para esta sessão</Text>
+        </View>
+      );
+    }
+    const axisColors = [colors.primary, colors.secondary]; // Pitch, Roll
+    return (
+      <LineChart
+        dataSet={axisColors.map((axisColor, i) => ({
+          data: imuData.map((p) => ({ value: p?.[i] ?? 0 })),
+          color: axisColor,
+        }))}
+        height={80}
+        width={CHART_WIDTH}
+        thickness={2}
+        curved
+        hideDataPoints
+        hideAxesAndRules
+        initialSpacing={0}
+        endSpacing={0}
+        disableScroll
+        adjustToWidth
+      />
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -154,48 +222,34 @@ export default function HistoryDetailPage({ navigation, route }) {
         </View>
 
         {/* ── sEMG - Resumo da Sessão ── */}
-        <View style={[sharedStyles.card, styles.sectionCard]}>
-          <Text style={styles.graphTitle}>sEMG - Resumo da Sessão</Text>
-          <View style={styles.graphArea}>
-            <View style={styles.graphLinesWrap}>
-              {[...Array(3)].map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.graphLine,
-                    {
-                      opacity: 0.4 + i * 0.25,
-                      marginTop: i * 6,
-                      backgroundColor: colors.primary,
-                    },
-                  ]}
-                />
-              ))}
+        {showEMG && (
+          <View style={[sharedStyles.card, styles.sectionCard]}>
+            <Text style={styles.graphTitle}>sEMG - Resumo da Sessão</Text>
+            <View style={styles.graphAreaReal}>
+              {renderEmgLine()}
             </View>
           </View>
-        </View>
+        )}
 
         {/* ── IMU - Resumo da Sessão ── */}
-        <View style={[sharedStyles.card, styles.sectionCard]}>
-          <Text style={styles.graphTitle}>IMU - Resumo da Sessão</Text>
-          <View style={styles.graphArea}>
-            <View style={styles.graphLinesWrap}>
-              {[...Array(3)].map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.graphLine,
-                    {
-                      opacity: 0.3 + i * 0.3,
-                      marginTop: i * 6,
-                      backgroundColor: colors.secondary,
-                    },
-                  ]}
-                />
-              ))}
+        {showIMU && (
+          <View style={[sharedStyles.card, styles.sectionCard]}>
+            <Text style={styles.graphTitle}>IMU - Resumo da Sessão</Text>
+            <View style={styles.graphAreaReal}>
+              {renderImuLine()}
             </View>
+            {imuData.length > 0 && (
+              <View style={styles.imuLegendRow}>
+                {['Pitch', 'Roll'].map((label, i) => (
+                  <View key={label} style={styles.imuLegendItem}>
+                    <View style={[styles.imuLegendDot, { backgroundColor: [colors.primary, colors.secondary][i] }]} />
+                    <Text style={styles.imuLegendLabel}>{label}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
-        </View>
+        )}
 
         {/* ── Exportar Dados ── */}
         <Text style={styles.sectionTitle}>Exportar Dados</Text>
@@ -323,27 +377,47 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text.primary,
   },
-  graphArea: {
-    height: 70,
+  graphAreaReal: {
+    minHeight: 90,
     backgroundColor: colors.background,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
-    borderStyle: 'dashed',
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  graphEmptyReal: {
+    height: 90,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    overflow: 'hidden',
+    paddingHorizontal: 16,
   },
-  graphLinesWrap: {
-    width: '100%',
-    gap: 4,
-    paddingTop: 12,
+  noDataText: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  graphLine: {
-    height: 2,
-    width: '100%',
-    borderRadius: 2,
+  imuLegendRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    marginTop: 4,
+  },
+  imuLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  imuLegendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  imuLegendLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.secondary,
   },
 
   /* ── Export section ── */
