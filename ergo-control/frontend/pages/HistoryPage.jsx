@@ -135,7 +135,13 @@ export default function HistoryPage({ navigation }) {
 
                   {session.synced === false && (
                     <View style={styles.syncBadge}>
-                      <Text style={styles.syncBadgeText}>⏳ Por sincronizar</Text>
+                      <Text style={styles.syncBadgeText}>⏳ Por sincronizar com o servidor </Text>
+                    </View>
+                  )}
+
+                  {session.synced === false && (
+                    <View style={styles.syncBadge}>
+                      <Text style={styles.syncBadgeText}>📡 Ligue-se a uma rede Wi-Fi com internet para sincronizar</Text>
                     </View>
                   )}
 

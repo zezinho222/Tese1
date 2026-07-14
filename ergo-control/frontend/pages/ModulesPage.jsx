@@ -143,6 +143,12 @@ export default function ModulesPage({ navigation }) {
                 </View>
               )}
 
+              {localModule.synced === false && (
+                <View style={styles.syncBadge}>
+                  <Text style={styles.syncBadgeText}>📡 Ligue-se a uma rede Wi-Fi com internet para sincronizar</Text>
+                </View>
+              )}
+
               {/* Offset e Frequência */}
               {(localModule.offsetLabel || localModule.freqHz) && (
                 <View style={styles.configRow}>
@@ -167,7 +173,7 @@ export default function ModulesPage({ navigation }) {
                 </View>
               )}
 
-              {/* Bateria */}
+              {/* Bateria
               <View style={styles.batteryRow}>
                 <Text style={styles.batteryLabel}>Bateria</Text>
                 <View style={styles.batteryBarWrap}>
@@ -184,6 +190,7 @@ export default function ModulesPage({ navigation }) {
                   {localModule.battery != null ? `${localModule.battery}%` : '—'}
                 </Text>
               </View>
+              */}
 
               <TouchableOpacity
                 style={[sharedStyles.redButton, styles.disconnectBtn]}

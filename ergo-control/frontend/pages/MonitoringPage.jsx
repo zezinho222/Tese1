@@ -195,7 +195,7 @@ export default function MonitoringPage({ navigation }) {
     if (!emgPoints || emgPoints.length === 0) {
       return (
         <View style={styles.graphEmpty}>
-          <Text style={styles.noDataText}>Sem dados — Inicia a monitorização</Text>
+          <Text style={styles.noDataText}>Sem dados - Inicia a monitorização</Text>
         </View>
       );
     }
@@ -222,7 +222,7 @@ export default function MonitoringPage({ navigation }) {
     if (!imuPoints || imuPoints.length === 0) {
       return (
         <View style={styles.graphEmpty}>
-          <Text style={styles.noDataText}>Sem dados — Inicia a monitorização</Text>
+          <Text style={styles.noDataText}>Sem dados - Inicia a monitorização</Text>
         </View>
       );
     }
@@ -290,7 +290,7 @@ export default function MonitoringPage({ navigation }) {
         {showEMG && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <View style={styles.cardHeader}>
-              <Text style={styles.sectionTitle}>⚡ sEMG — Atividade Muscular</Text>
+              <Text style={styles.sectionTitle}>⚡ sEMG - Atividade Muscular</Text>
               <View style={styles.cardHeaderRight}>
                 {localModule?.mvc != null && (
                   <Text style={styles.mvcLabel}>MVC: {localModule.mvc.toFixed(2)}</Text>
@@ -319,7 +319,7 @@ export default function MonitoringPage({ navigation }) {
         {showIMU && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <View style={styles.cardHeader}>
-              <Text style={styles.sectionTitle}>🧭 IMU — Dados de Movimento</Text>
+              <Text style={styles.sectionTitle}>🧭 IMU - Dados de ola</Text>
               <TouchableOpacity
                 style={styles.expandBtn}
                 onPress={() => navigation.navigate('ChartFullscreen', { type: 'IMU' })}

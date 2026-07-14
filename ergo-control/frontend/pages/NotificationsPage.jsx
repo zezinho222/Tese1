@@ -17,14 +17,14 @@ const SECTIONS = [
     label: 'Alertas de Postura',
     items: [
       { id: 'notifications', title: 'Notificações', subtitle: 'Notificar quando postura incorreta', default: true },
-      { id: 'vibration', title: 'Vibração', subtitle: 'Vibrar ao detetar risco', default: true },
+      //{ id: 'vibration', title: 'Vibração', subtitle: 'Vibrar ao detetar risco', default: true },
       { id: 'sound', title: 'Som', subtitle: 'Emitir som de alerta', default: false },
     ],
   },
   {
     label: 'Sistema',
     items: [
-      { id: 'updates', title: 'Atualizações da App', subtitle: 'Notificar novas versões disponíveis', default: false },
+      //{ id: 'updates', title: 'Atualizações da App', subtitle: 'Notificar novas versões disponíveis', default: false },
       { id: 'device', title: 'Estado do Dipositivo', subtitle: 'Alertar bateria baixa ou desconexão', default: true },
     ],
   },
