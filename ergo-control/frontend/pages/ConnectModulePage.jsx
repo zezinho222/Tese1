@@ -144,9 +144,11 @@ export default function ConnectModulePage({ navigation }) {
     // Guarda sempre localmente primeiro (offline-first) — não depende de internet
     await syncService.queueModuleSave(moduleData);
 
-    // Tenta sincronizar já com o backend; se não houver internet, fica para o
-    // listener automático em App.js sincronizar assim que a houver.
-    syncService.trySyncAll(token);
+    // Tenta sincronizar já com o backend (é seguro esperar: se não houver
+    // internet real, trySyncAll sai logo via hasInternet() sem bloquear).
+    // Se não houver internet, fica para o listener automático em App.js
+    // sincronizar assim que a houver.
+    await syncService.trySyncAll(token);
 
     setSaving(false);
     setModalStep(STEP_SELECTION);

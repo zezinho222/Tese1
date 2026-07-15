@@ -53,6 +53,11 @@ export default function HistoryPage({ navigation }) {
     else setLoading(true);
     setError('');
     try {
+      // Espera o sync terminar ANTES de ler/mergear as sessões — caso
+      // contrário o push das sessões locais por sincronizar só acontecia
+      // pelo listener passivo do NetInfo (App.js), e o refresh manual
+      // não fazia nada para limpar o aviso "por sincronizar".
+      await syncService.trySyncAll(token);
       const merged = await syncService.getMergedSessions(token);
       setSessions(merged);
     } catch {

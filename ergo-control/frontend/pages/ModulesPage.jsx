@@ -32,6 +32,7 @@ export default function ModulesPage({ navigation }) {
   const [removing, setRemoving]           = useState(false);
   const [error, setError]                 = useState('');
   const [showWifiModal, setShowWifiModal] = useState(false);
+  const [online, setOnline]               = useState(true); // internet real, usado para escolher a mensagem de sync certa
 
   // ─── Carregar módulo (fonte de verdade local, com tentativa de sync) ──
   const loadModule = async (isRefresh = false) => {
@@ -39,8 +40,13 @@ export default function ModulesPage({ navigation }) {
     else setLoading(true);
     setError('');
     try {
-      // Tenta sincronizar em segundo plano se houver internet real
-      syncService.trySyncAll(token);
+      // Espera o sync terminar ANTES de ler o estado local — se isto for
+      // "fire-and-forget" (sem await), o badge "por sincronizar" lê o
+      // valor antigo de synced e só atualiza no refresh seguinte, dando
+      // a sensação de que nunca sincroniza mesmo já havendo internet.
+      await syncService.trySyncAll(token);
+      const isOnline = await syncService.hasInternet();
+      setOnline(isOnline);
       const mod = await syncService.getLocalModule();
       setLocalModule(mod);
     } catch {
@@ -139,13 +145,11 @@ export default function ModulesPage({ navigation }) {
 
               {localModule.synced === false && (
                 <View style={styles.syncBadge}>
-                  <Text style={styles.syncBadgeText}>⏳ Por sincronizar com o servidor</Text>
-                </View>
-              )}
-
-              {localModule.synced === false && (
-                <View style={styles.syncBadge}>
-                  <Text style={styles.syncBadgeText}>📡 Ligue-se a uma rede Wi-Fi com internet para sincronizar</Text>
+                  <Text style={styles.syncBadgeText}>
+                    {online
+                      ? '⏳ Por sincronizar com o servidor'
+                      : '📡 Ligue-se a uma rede Wi-Fi com internet para sincronizar'}
+                  </Text>
                 </View>
               )}
 
