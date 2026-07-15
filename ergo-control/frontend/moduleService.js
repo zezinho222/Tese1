@@ -2,18 +2,25 @@
  * moduleService.js
  * Serviço singleton para comunicação com o módulo (STM32 + ESP32) via socket TCP em bruto.
  *
- * Protocolo confirmado empiricamente a partir dos bytes reais recebidos do hardware:
+ * Protocolo confirmado a partir do firmware (main.c):
  *
  *  MODO IMU (texto, sem prefixo):
  *    "<pitch>, <roll>\n"   (dois floats separados por vírgula)
  *
- *  MODO EMG (binário — SYNC no byte 0, SEM byte de sensor_id):
- *    SYNC(4) + seq(2) + nsamp(2) + timestamp(4)
- *    + data[nsamp](nsamp×2) + trailer(2)
+ *  MODO EMG (binário — struct EmgFrame __packed__ enviada em bruto):
+ *    sync(4) + sensor_id(1) + seq(2) + nsamp(2) + timestamp(4)
+ *    + data[nsamp](nsamp×2) + battery(2) + crc(2)
  *
- *  MODO DUAL (binário — SYNC no byte 0, SEM byte de sensor_id, igual ao EMG):
- *    SYNC(4) + seq(2) + nsamp(2) + imu_samp(2) + timestamp(4)
- *    + Pitch[imu_samp](×4) + Roll[imu_samp](×4) + data[nsamp](×2) + trailer(2)
+ *  MODO DUAL (binário — montado por build_dual_packet no STM32):
+ *    sensor_id(1) + sync(4) + seq(2) + nsamp(2) + imu_samp(2) + timestamp(4)
+ *    + Pitch[imu_samp](×4) + Roll[imu_samp](×4) + data[nsamp](×2) + battery(2) + crc(2)
+ *
+ *  Nota importante: no modo DUAL o sensor_id vem ANTES do sync (não depois,
+ *  como no modo EMG). O parser localiza sempre o sync via indexOf e descarta
+ *  tudo antes dele, por isso o byte de sensor_id do DUAL é absorvido
+ *  automaticamente como "lixo antes do sync" — não precisa de ser contado
+ *  no header. Já no modo EMG o sensor_id vem DEPOIS do sync, dentro do
+ *  próprio header, por isso TEM de ser contado explicitamente.
  *
  *  Em ambos os modos binários, nsamp/imu_samp vêm dentro do próprio frame —
  *  o tamanho de cada frame é sempre calculado a partir daí, nunca assumido.
@@ -30,15 +37,19 @@ const SYNC_WORD    = 0xDEADBEEF;
 const SYNC_PATTERN = Buffer.from([0xEF, 0xBE, 0xAD, 0xDE]); // 0xDEADBEEF em little-endian
 const SYNC_BYTES   = 4;
 
-// Modo EMG: SYNC(4) + seq(2) + nsamp(2) + timestamp(4) = 12 bytes até aos dados
-// (confirmado a partir dos bytes reais — SEM byte de sensor_id neste modo)
-const EMG_HEADER_BYTES  = 4 + 2 + 2 + 4; // 12
-const EMG_TRAILER_BYTES = 2;             // só 2 bytes de fecho (crc ou battery)
+// Modo EMG: sync(4) + sensor_id(1) + seq(2) + nsamp(2) + timestamp(4) = 13 bytes até aos dados
+// (struct EmgFrame packed, enviada tal-e-qual pelo STM32 — sensor_id ESTÁ presente,
+// logo a seguir ao sync)
+const EMG_HEADER_BYTES  = SYNC_BYTES + 1 + 2 + 2 + 4; // 13
+// Trailer: battery(2) + crc(2)
+const EMG_TRAILER_BYTES = 2 + 2; // 4
 
-// Modo DUAL: SYNC(4) + seq(2) + nsamp(2) + imu_samp(2) + timestamp(4) = 14 bytes até aos dados
-// (confirmado a partir dos bytes reais — SEM byte de sensor_id, igual ao modo EMG)
-const DUAL_HEADER_BYTES  = 4 + 2 + 2 + 2 + 4; // 14
-const DUAL_TRAILER_BYTES = 2;                 // só 2 bytes de fecho
+// Modo DUAL: sync(4) + seq(2) + nsamp(2) + imu_samp(2) + timestamp(4) = 14 bytes até aos dados
+// (o sensor_id que o STM32 escreve ANTES do sync é descartado como lixo antes
+// de chegarmos aqui — ver tryParseBinaryFrames)
+const DUAL_HEADER_BYTES  = SYNC_BYTES + 2 + 2 + 2 + 4; // 14
+// Trailer: battery(2) + crc(2)
+const DUAL_TRAILER_BYTES = 2 + 2; // 4
 
 // Limites de sanidade — se nsamp/imu_samp lidos vierem acima disto, é sinal
 // de que o SYNC encontrado não é o início real de um frame válido neste modo
@@ -98,7 +109,9 @@ function tryParseBinaryFrames(onData) {
       return;
     }
 
-    // Descarta lixo antes do SYNC encontrado
+    // Descarta lixo antes do SYNC encontrado.
+    // No modo DUAL isto inclui sempre o byte de sensor_id que o STM32 escreve
+    // antes do sync (ver build_dual_packet no firmware) — é esperado e normal.
     if (syncIdx > 0) recvBuffer = recvBuffer.slice(syncIdx);
 
     if (currentMode === 'DUAL') {
@@ -119,7 +132,7 @@ function tryParseBinaryFrames(onData) {
                       + imusamp * 4   // Pitch
                       + imusamp * 4   // Roll
                       + nsamp * 2     // amostras EMG
-                      + DUAL_TRAILER_BYTES;
+                      + DUAL_TRAILER_BYTES; // battery + crc
 
       if (recvBuffer.length < frameLen) return; // frame ainda incompleto — espera mais dados
       const frame = recvBuffer.slice(0, frameLen);
@@ -132,7 +145,7 @@ function tryParseBinaryFrames(onData) {
       for (let i = 0; i < imusamp; i++) { rollArr.push(frame.readFloatLE(dataOff)); dataOff += 4; }
       const emgArr = [];
       for (let i = 0; i < nsamp; i++) { emgArr.push(frame.readUInt16LE(dataOff)); dataOff += 2; }
-      // trailer (2 bytes) segue-se, não é preciso para os gráficos
+      // trailer (battery + crc, 4 bytes) segue-se, não é preciso para os gráficos
 
       const imuSamples = pitchArr.map((p, i) => [p, rollArr[i]]); // [pitch, roll]
 
@@ -150,11 +163,11 @@ function tryParseBinaryFrames(onData) {
       onData && onData(frame, parsed);
 
     } else {
-      // Modo EMG: o SYNC está mesmo no início do frame (offset 0)
-      // Precisamos de pelo menos SYNC(4)+seq(2)+nsamp(2) para ler o nsamp
-      if (recvBuffer.length < SYNC_BYTES + 2 + 2) return;
+      // Modo EMG: sync no offset 0, seguido do sensor_id (1 byte) antes de seq/nsamp
+      // Precisamos de pelo menos SYNC(4)+sensor_id(1)+seq(2)+nsamp(2) para ler o nsamp
+      if (recvBuffer.length < SYNC_BYTES + 1 + 2 + 2) return;
 
-      const nsamp = recvBuffer.readUInt16LE(SYNC_BYTES + 2); // offset 6
+      const nsamp = recvBuffer.readUInt16LE(SYNC_BYTES + 1 + 2); // offset 7
 
       // Valor absurdo → SYNC não é um frame EMG válido — descarta e procura o próximo
       if (nsamp > MAX_NSAMP) {
@@ -171,6 +184,7 @@ function tryParseBinaryFrames(onData) {
       let dataOff = EMG_HEADER_BYTES;
       const emgArr = [];
       for (let i = 0; i < nsamp; i++) { emgArr.push(frame.readUInt16LE(dataOff)); dataOff += 2; }
+      // trailer (battery + crc, 4 bytes) segue-se, não é preciso para os gráficos
 
       if (calibMode) calibBuffer.push(...emgArr);
       if (monitoring) emgBuffer.push(...emgArr);
