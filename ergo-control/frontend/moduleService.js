@@ -155,9 +155,6 @@ function tryParseBinaryFrames(onData) {
         imuBuffer.push(...imuSamples);
       }
 
-      // LOG TEMPORÁRIO — remover depois de confirmar
-      console.log('[ModuleService] frame DUAL parseado:', nsamp, 'EMG +', imusamp, 'IMU | emgBuffer=', emgBuffer.length);
-
       const parsed = { type: 'FRAME', emg: emgArr, imu: imuSamples };
       listeners.forEach((cb) => cb(frame, parsed));
       onData && onData(frame, parsed);
@@ -189,9 +186,6 @@ function tryParseBinaryFrames(onData) {
       if (calibMode) calibBuffer.push(...emgArr);
       if (monitoring) emgBuffer.push(...emgArr);
 
-      // LOG TEMPORÁRIO — remover depois de confirmar
-      console.log('[ModuleService] frame EMG parseado:', nsamp, 'amostras | emgBuffer=', emgBuffer.length);
-
       const parsed = { type: 'FRAME', emg: emgArr, imu: [] };
       listeners.forEach((cb) => cb(frame, parsed));
       onData && onData(frame, parsed);
@@ -219,13 +213,6 @@ function parseTextLine(line, onData) {
 
 function handleIncomingData(data, onData) {
   const chunk = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
-
-  // LOG TEMPORÁRIO — remover depois de confirmar
-  console.log(
-    '[ModuleService] dados recebidos:', chunk.length, 'bytes | modo=' + currentMode,
-    '| monitoring=' + monitoring,
-    '| primeiros bytes=', chunk.slice(0, 16).toString('hex')
-  );
 
   if (currentMode === 'EMG' || currentMode === 'DUAL') {
     recvBuffer = Buffer.concat([recvBuffer, chunk]);
@@ -350,9 +337,6 @@ const moduleService = {
       textLineBuf = '';
     }
 
-    // LOG TEMPORÁRIO — remover depois de confirmar
-    console.log(`[ModuleService] a enviar comando: "${str}" (modo interno agora=${currentMode})`);
-
     socket.write(str + '\n');
     return true;
   },
@@ -369,19 +353,12 @@ const moduleService = {
     emgBuffer = [];
     imuBuffer = [];
     monitoring = true;
-
-    // LOG TEMPORÁRIO — remover depois de confirmar
-    console.log(`[ModuleService] startMonitoring("${mode}") | socket ligado? ${socket !== null}`);
-
     this.sendCommand(mode);
   },
 
   stopMonitoring() {
     monitoring = false;
     this.sendCommand('IDLE');
-
-    // LOG TEMPORÁRIO — remover depois de confirmar
-    console.log(`[ModuleService] stopMonitoring() | emgBuffer=${emgBuffer.length} imuBuffer=${imuBuffer.length}`);
 
     return {
       emgBuffer: [...emgBuffer],

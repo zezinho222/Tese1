@@ -46,6 +46,7 @@ export default function HistoryPage({ navigation }) {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState('');
+  const [online,     setOnline]     = useState(true); // internet real, para escolher a mensagem de sync certa
 
   // ── Carregar sessões (local + merge com backend quando há internet) ───────
   const loadSessions = async (isRefresh = false) => {
@@ -58,6 +59,8 @@ export default function HistoryPage({ navigation }) {
       // pelo listener passivo do NetInfo (App.js), e o refresh manual
       // não fazia nada para limpar o aviso "por sincronizar".
       await syncService.trySyncAll(token);
+      const isOnline = await syncService.hasInternet();
+      setOnline(isOnline);
       const merged = await syncService.getMergedSessions(token);
       setSessions(merged);
     } catch {
@@ -140,13 +143,11 @@ export default function HistoryPage({ navigation }) {
 
                   {session.synced === false && (
                     <View style={styles.syncBadge}>
-                      <Text style={styles.syncBadgeText}>⏳ Por sincronizar com o servidor </Text>
-                    </View>
-                  )}
-
-                  {session.synced === false && (
-                    <View style={styles.syncBadge}>
-                      <Text style={styles.syncBadgeText}>📡 Ligue-se a uma rede Wi-Fi com internet para sincronizar</Text>
+                      <Text style={styles.syncBadgeText}>
+                        {online
+                          ? '⏳ Por sincronizar com o servidor'
+                          : '📡 Ligue-se a uma rede Wi-Fi com internet para sincronizar'}
+                      </Text>
                     </View>
                   )}
 
