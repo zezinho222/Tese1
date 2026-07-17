@@ -131,8 +131,23 @@ export default function CalibratePage({ navigation }) {
   //  FLUXO DE CALIBRAÇÃO sEMG
   // ══════════════════════════════════════════════════════════
 
-  const handleCalibrateEMG = () => {
+  const handleCalibrateEMG = async () => {
     setCalError('');
+
+    // A sincronização com o backend desliga o módulo sempre que há internet
+    // real (para libertar a Wi-Fi forçada) — ao voltar à rede do módulo é
+    // preciso reconectar antes de poder calibrar outra vez.
+    if (!moduleService.isConnected()) {
+      const reconnected = await moduleService.ensureConnected({
+        offsetValue: localModule?.offsetValue,
+        freqValue: localModule?.freqValue,
+      });
+      if (!reconnected) {
+        setCalError('Módulo não está ligado. Confirma que estás na rede Wi-Fi do módulo e tenta novamente.');
+        return;
+      }
+    }
+
     // 1. Envia EMG ao módulo
     const sent = moduleService.sendCommand('EMG');
     if (!sent) {

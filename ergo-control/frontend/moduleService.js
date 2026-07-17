@@ -314,11 +314,69 @@ const moduleService = {
 
   async disconnect() {
     if (socket) {
-      socket.destroy();
-      socket = null;
+      const s = socket;
+      socket = null; // marca já como desligado para o resto da app (isConnected/ensureConnected)
+      try {
+        // Fecho gracioso (FIN) em vez de destroy() abrupto (RST) — a ponte
+        // Wi-Fi↔UART do módulo parece não detetar bem um cliente a cair de
+        // forma abrupta, ficando "presa" a pensar que o cliente anterior
+        // ainda está ligado e nunca mais liga os dados a uma reconexão
+        // seguinte (socket aceite, mas zero bytes chegam depois disso).
+        s.end();
+        await new Promise((r) => setTimeout(r, 200));
+      } catch (e) {
+        // ignora — segue para o destroy() de garantia abaixo
+      }
+      try { s.destroy(); } catch (e) {}
     }
     currentMode = 'IDLE';
     await releaseModuleWifi();
+  },
+
+  /**
+   * Garante que há ligação ao módulo, voltando a ligar se necessário.
+   * Necessário porque a sincronização (syncService.trySyncAll) desliga o
+   * módulo sempre que há internet real, para libertar a Wi-Fi forçada — ao
+   * voltar à rede do módulo, o socket já não existe e tem de ser recriado
+   * antes de se poder monitorizar/calibrar outra vez.
+   *
+   * O offset (POT) e a frequência (FREQ) são estado por-ligação no
+   * firmware — perdem-se sempre que o socket TCP cai, por isso, se forem
+   * passados aqui, são reenviados logo a seguir a ligar de novo (mesma
+   * sequência que o ConnectModulePage usa da primeira vez).
+   *
+   * IMPORTANTE: no firmware (main.c), tanto o handler de POT como o de FREQ
+   * fazem um HAL_Delay(2000) BLOQUEANTE ao processar o valor recebido, e o
+   * buffer de comandos UART (command_buffer) é um único slot — não uma
+   * fila. Qualquer comando enviado enquanto o STM32 está preso nesse delay
+   * é silenciosamente perdido (substituído pelo próximo). Por isso a
+   * espera aqui tem de ser MAIOR que 2000ms depois de cada valor, senão o
+   * FREQ (ou até o comando de modo EMG/DUAL a seguir) nunca chega a ser
+   * aplicado e o módulo fica sem transmitir dados, sem erro nenhum.
+   */
+  async ensureConnected({ offsetValue, freqValue } = {}) {
+    if (socket) return true;
+
+    const ok = await new Promise((resolve) => {
+      this.connect({
+        onOpen: () => resolve(true),
+        onError: () => resolve(false),
+      });
+    });
+    if (!ok) return false;
+
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    if (offsetValue != null) {
+      this.sendCommand('POT');
+      this.sendCommand(String(offsetValue));
+      await wait(2500); // > HAL_Delay(2000) do handler de POT no firmware
+    }
+    if (freqValue != null) {
+      this.sendCommand('FREQ');
+      this.sendCommand(String(freqValue));
+      await wait(2500); // > HAL_Delay(2000) do handler de FREQ no firmware
+    }
+    return true;
   },
 
   sendCommand(cmd) {

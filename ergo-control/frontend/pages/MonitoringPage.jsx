@@ -119,8 +119,15 @@ export default function MonitoringPage({ navigation }) {
     }
 
     if (!moduleService.isConnected()) {
-      setError('Módulo não está ligado. Vai à página Módulos e reconecta.');
-      return;
+      setError('A ligar ao módulo...');
+      const reconnected = await moduleService.ensureConnected({
+        offsetValue: localModule.offsetValue,
+        freqValue: localModule.freqValue,
+      });
+      if (!reconnected) {
+        setError('Módulo não está ligado. Confirma que estás na rede Wi-Fi do módulo e tenta novamente.');
+        return;
+      }
     }
 
     setError('');
@@ -140,12 +147,15 @@ export default function MonitoringPage({ navigation }) {
     });
     sessionIdRef.current = localId;
 
+    // Inicia monitorização no serviço (envia EMG / IMU / DUAL) ANTES de
+    // tentar sincronizar — trySyncAll desliga o módulo quando há internet
+    // e não está a monitorizar; chamá-lo antes disto podia desligar o
+    // módulo mesmo depois de reconectado, antes de começar a receber dados.
+    moduleService.startMonitoring(sensorType);
+
     // Tentativa de sincronização em segundo plano — não bloqueia nem falha visivelmente
     // se não houver internet; o listener em App.js trata disso mais tarde.
     syncService.trySyncAll(token);
-
-    // Inicia monitorização no serviço (envia EMG / IMU / DUAL)
-    moduleService.startMonitoring(sensorType);
 
     setIsMonitoring(true);
     startTimer();

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthStack from './navigation/AuthStack';
 import MainTabs from './navigation/MainTabs';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import syncService from './syncService';
+import moduleService from './moduleService';
 
 function RootNavigator() {
   const { user, login, token } = useAuth();
@@ -34,6 +36,21 @@ function RootNavigator() {
   useEffect(() => {
     if (token) syncService.trySyncAll(token);
   }, [token]);
+
+  // Desliga o módulo (fecho gracioso) sempre que a app vai para segundo
+  // plano — é o que acontece quando sais para as Definições trocar de
+  // rede. Feito aqui, e não à espera do trySyncAll, porque nessa altura já
+  // não há caminho de rede até ao módulo para o FIN chegar: a ponte
+  // Wi-Fi↔UART do módulo fica "presa" a achar que ainda estás ligado e
+  // nunca mais aceita a próxima ligação.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if ((state === 'background' || state === 'inactive') && !moduleService.isMonitoring()) {
+        moduleService.disconnect();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   if (loading) return null;
 
