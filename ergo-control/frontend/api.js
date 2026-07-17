@@ -1,5 +1,11 @@
 const API_URL = 'https://tese1.onrender.com';
 
+// Chamado sempre que o backend rejeita o token (expirado/inválido), para a
+// app poder fazer logout e pedir novo login em vez de falhar em silêncio
+// para sempre. Registado pelo AuthContext.
+let onUnauthorized = null;
+const setOnUnauthorized = (fn) => { onUnauthorized = fn; };
+
 // Helper para pedidos autenticados
 const authFetch = async (path, token, options = {}) => {
   const res = await fetch(`${API_URL}${path}`, {
@@ -10,6 +16,7 @@ const authFetch = async (path, token, options = {}) => {
       ...(options.headers || {}),
     },
   });
+  if (res.status === 401) onUnauthorized?.();
   return res.json();
 };
 
@@ -111,4 +118,6 @@ export const api = {
     authFetch(`/api/sessions/${sessionId}`, token, {
       method: 'DELETE',
     }),
+
+  setOnUnauthorized,
 };

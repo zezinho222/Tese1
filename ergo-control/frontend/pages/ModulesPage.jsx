@@ -33,6 +33,7 @@ export default function ModulesPage({ navigation }) {
   const [error, setError]                 = useState('');
   const [showWifiModal, setShowWifiModal] = useState(false);
   const [online, setOnline]               = useState(true); // internet real, usado para escolher a mensagem de sync certa
+  const [syncError, setSyncError]         = useState(null); // motivo da última falha de sync (só relevante se online)
 
   // ─── Carregar módulo (fonte de verdade local, com tentativa de sync) ──
   const loadModule = async (isRefresh = false) => {
@@ -47,6 +48,7 @@ export default function ModulesPage({ navigation }) {
       await syncService.trySyncAll(token);
       const isOnline = await syncService.hasInternet();
       setOnline(isOnline);
+      setSyncError(syncService.getLastSyncError());
       const mod = await syncService.getLocalModule();
       setLocalModule(mod);
     } catch {
@@ -147,7 +149,7 @@ export default function ModulesPage({ navigation }) {
                 <View style={styles.syncBadge}>
                   <Text style={styles.syncBadgeText}>
                     {online
-                      ? '⏳ Por sincronizar com o servidor'
+                      ? (syncError ? `⚠️ Falha ao sincronizar: ${syncError}` : '⏳ Por sincronizar com o servidor')
                       : '📡 Ligue-se a uma rede Wi-Fi com internet para sincronizar'}
                   </Text>
                 </View>

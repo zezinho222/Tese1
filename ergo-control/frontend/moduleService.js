@@ -418,6 +418,12 @@ const moduleService = {
     return socket !== null;
   },
 
+  // Verdadeiro durante monitorização OU calibração — usado para não
+  // desligar o socket/Wi-Fi forçada a meio de uma aquisição em curso.
+  isMonitoring() {
+    return monitoring || calibMode;
+  },
+
   getStatus() {
     return socket !== null ? 'connected' : 'disconnected';
   },

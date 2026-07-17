@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../api';
 
 const AuthContext = createContext();
 
@@ -20,6 +21,13 @@ export function AuthProvider({ children }) {
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
   };
+
+  // Se o backend rejeitar o token (expirado/inválido) em qualquer pedido,
+  // faz logout automático — sem isto, a sincronização falhava para sempre
+  // em silêncio, sem nunca pedir novo login.
+  useEffect(() => {
+    api.setOnUnauthorized(() => logout());
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>

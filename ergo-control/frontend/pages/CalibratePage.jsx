@@ -16,8 +16,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../api';
 import moduleService from '../moduleService';
+import syncService from '../syncService';
 import { calculateMVC } from '../utils/emgProcessing';
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
@@ -67,9 +67,11 @@ export default function CalibratePage({ navigation }) {
         setLocalModule(mod);
         // IMU é auto-calibrado quando conectado
         if ((mod.sensorSelection === 'IMU' || mod.sensorSelection === 'DUAL') && !mod.calibrated?.IMU) {
-          const updated = { ...mod, calibrated: { ...mod.calibrated, IMU: true } };
-          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+          const updated = await syncService.queueModuleUpdate({
+            calibrated: { ...mod.calibrated, IMU: true },
+          });
           setLocalModule(updated);
+          syncService.trySyncAll(token); // em segundo plano — não bloqueia se ainda sem internet
         }
       } else {
         setLocalModule(null);
@@ -170,23 +172,19 @@ export default function CalibratePage({ navigation }) {
       mvc = null;
     }
 
-    // Atualiza AsyncStorage
+    // Grava sempre localmente primeiro (offline-first) — funciona mesmo
+    // ligado à Wi-Fi do módulo, sem internet. A sincronização com o backend
+    // fica a cargo do syncService, que tenta já e volta a tentar assim que
+    // houver internet real (listener em App.js / refresh nas páginas).
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const mod     = JSON.parse(raw);
-        const updated = {
-          ...mod,
+      const mod = await syncService.getLocalModule();
+      if (mod) {
+        const updated = await syncService.queueModuleUpdate({
           mvc,
           calibrated: { ...mod.calibrated, sEMG: true },
-        };
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        });
         setLocalModule(updated);
-
-        // Guarda no backend
-        if (token && mod.backendId) {
-          await api.updateCalibration(token, mod.backendId, { sensor: 'sEMG', mvc }).catch(() => {});
-        }
+        await syncService.trySyncAll(token);
       }
     } catch {
       // Sem internet — continua offline

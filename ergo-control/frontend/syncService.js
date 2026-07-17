@@ -17,6 +17,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { api } from './api';
+import moduleService from './moduleService';
 
 const SESSIONS_KEY = '@ergocontrol/sessions';
 const MODULE_KEY   = '@ergocontrol/connected_module';
@@ -25,6 +26,7 @@ const MAX_CHART_POINTS = 200; // limite de pontos guardados por sessão, para gr
 let syncing = false;              // evita sincronizações concorrentes
 let netUnsubscribe = null;
 let tokenGetter = () => null;     // função que devolve o token atual (evita closures presos a um valor antigo)
+let lastSyncError = null;         // última falha de sync (módulo ou sessões), para mostrar na UI
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 function generateLocalId() {
@@ -243,33 +245,76 @@ async function queueModuleSave(moduleData) {
   return toSave;
 }
 
+/**
+ * Aplica alterações ao módulo local (ex: calibração, MVC) e marca por
+ * sincronizar — mantém o backendId existente, ao contrário de
+ * queueModuleSave (que é só para a criação inicial). Usado sempre que algo
+ * muda depois de o módulo já estar guardado (normalmente ainda offline,
+ * ligado à Wi-Fi do módulo), para não se perder quando a internet voltar.
+ */
+async function queueModuleUpdate(patch) {
+  const mod = await readModule();
+  if (!mod) return null;
+  const updated = { ...mod, ...patch, synced: false };
+  await writeModule(updated);
+  return updated;
+}
+
 async function getLocalModule() {
   return readModule();
 }
 
-/** Tenta criar o módulo no backend se ainda não tiver backendId. */
+/** Envia ao backend a calibração/MVC guardados localmente (idempotente). */
+async function pushCalibration(token, mod) {
+  if (!mod.backendId) return;
+  if (mod.calibrated?.sEMG) {
+    await api.updateCalibration(token, mod.backendId, { sensor: 'sEMG', mvc: mod.mvc });
+  }
+  if (mod.calibrated?.IMU) {
+    await api.updateCalibration(token, mod.backendId, { sensor: 'IMU' });
+  }
+}
+
+/**
+ * Sincroniza o módulo com o backend: cria-o se ainda não existir lá, ou,
+ * se já existir, reenvia as alterações locais por sincronizar (calibração,
+ * MVC) — sem isto, calibrar offline (ligado à Wi-Fi do módulo) nunca
+ * chegava à base de dados mesmo depois de haver internet.
+ */
 async function syncModule(token) {
   if (!token) return;
   const mod = await readModule();
-  if (!mod || mod.synced || mod.backendId) return;
+  if (!mod || mod.synced) return;
 
   try {
-    const res = await api.addModule(token, {
-      name: mod.name,
-      ip: mod.ip,
-      port: mod.port,
-      battery: mod.battery,
-      sensorSelection: mod.sensorSelection,
-      offsetValue: mod.offsetValue,
-      offsetLabel: mod.offsetLabel,
-      freqHz: mod.freqHz,
-      freqValue: mod.freqValue,
-    });
-    if (res?.success && res?.module?._id) {
-      await writeModule({ ...mod, backendId: res.module._id, synced: true });
+    if (!mod.backendId) {
+      const res = await api.addModule(token, {
+        name: mod.name,
+        ip: mod.ip,
+        port: mod.port,
+        battery: mod.battery,
+        sensorSelection: mod.sensorSelection,
+        offsetValue: mod.offsetValue,
+        offsetLabel: mod.offsetLabel,
+        freqHz: mod.freqHz,
+        freqValue: mod.freqValue,
+      });
+      if (!res?.success || !res?.module?._id) {
+        lastSyncError = res?.message || 'Backend recusou o pedido ao guardar o módulo.';
+        console.warn('[syncService] Falha ao sincronizar módulo (resposta):', res);
+        return;
+      }
+      const withId = { ...mod, backendId: res.module._id };
+      await pushCalibration(token, withId);
+      await writeModule({ ...withId, synced: true });
+    } else {
+      await pushCalibration(token, mod);
+      await writeModule({ ...mod, synced: true });
     }
-  } catch {
-    // sem internet real — tenta mais tarde
+    lastSyncError = null;
+  } catch (e) {
+    lastSyncError = e?.message || String(e);
+    console.warn('[syncService] Falha ao sincronizar módulo:', e);
   }
 }
 
@@ -283,6 +328,17 @@ async function trySyncAll(token) {
 
   syncing = true;
   try {
+    // Se há internet real, já não podemos estar na Wi-Fi do módulo (sem
+    // internet) — mas o forceWifiUsage(true) do Android pode ter ficado
+    // "preso" à rede antiga do hotspot (ex: utilizador trocou de rede nas
+    // definições sem passar pelo botão "voltar" do ecrã de configuração).
+    // Isso força TODOS os pedidos HTTP da app pela rede sem internet,
+    // fazendo a sincronização falhar silenciosamente para sempre. Larga
+    // esse "force" aqui, exceto durante uma monitorização ativa (aí o
+    // socket ao módulo ainda é necessário).
+    if (!moduleService.isMonitoring()) {
+      await moduleService.disconnect();
+    }
     await syncModule(token);
     await syncSessions(token);
   } finally {
@@ -319,12 +375,14 @@ export const syncService = {
   queueSessionEnd,
   getMergedSessions,
   queueModuleSave,
+  queueModuleUpdate,
   getLocalModule,
   trySyncAll,
   initNetworkListener,
   stopNetworkListener,
   hasInternet,
   downsampleArray,
+  getLastSyncError: () => lastSyncError,
 };
 
 export default syncService;
