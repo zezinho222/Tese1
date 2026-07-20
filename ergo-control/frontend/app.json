@@ -15,7 +15,14 @@
       "backgroundColor": "#ffffff"
     },
     "plugins": [
-      "react-native-wifi-reborn"
+      "react-native-wifi-reborn",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,

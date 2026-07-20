@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,46 +11,59 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
+import notificationService from '../notificationService';
 
 const SECTIONS = [
   {
     label: 'Alertas de Postura',
     items: [
-      { id: 'notifications', title: 'Notificações', subtitle: 'Notificar quando postura incorreta', default: true },
-      //{ id: 'vibration', title: 'Vibração', subtitle: 'Vibrar ao detetar risco', default: true },
-      { id: 'sound', title: 'Som', subtitle: 'Emitir som de alerta', default: false },
+      { id: 'notifications', title: 'Notificações', subtitle: 'Notificar quando postura incorreta' },
+      //{ id: 'vibration', title: 'Vibração', subtitle: 'Vibrar ao detetar risco' },
+      { id: 'sound', title: 'Som', subtitle: 'Emitir som de alerta' },
     ],
   },
   {
     label: 'Sistema',
     items: [
-      //{ id: 'updates', title: 'Atualizações da App', subtitle: 'Notificar novas versões disponíveis', default: false },
-      { id: 'device', title: 'Estado do Dipositivo', subtitle: 'Alertar bateria baixa ou desconexão', default: true },
+      //{ id: 'updates', title: 'Atualizações da App', subtitle: 'Notificar novas versões disponíveis' },
+      { id: 'device', title: 'Estado do Dipositivo', subtitle: 'Alertar desconexão do módulo a meio de uma sessão' },
     ],
   },
 ];
 
 export default function NotificationsPage({ navigation }) {
-  const [settings, setSettings] = useState(() => {
-    const initial = {};
-    SECTIONS.forEach(section =>
-      section.items.forEach(item => {
-        initial[item.id] = item.default;
-      })
-    );
-    return initial;
-  });
-
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const toggle = (id) =>
-    setSettings(prev => ({ ...prev, [id]: !prev[id] }));
+  // Carrega as preferências guardadas (ou os valores por omissão, na primeira vez).
+  useEffect(() => {
+    notificationService.getSettings().then(setSettings);
+  }, []);
+
+  const toggle = async (id) => {
+    if (!settings) return;
+    const next = { ...settings, [id]: !settings[id] };
+    setSettings(next);
+
+    // Se o utilizador está a ligar as notificações, pede logo a permissão
+    // ao sistema — se recusar, o toggle fica ligado na app mas nenhuma
+    // notificação vai realmente aparecer (comportamento normal do SO).
+    if (id === 'notifications' && next.notifications) {
+      await notificationService.ensurePermission();
+    }
+  };
 
   const handleSave = async () => {
+    if (!settings) return;
     setLoading(true);
-    // TODO: chamar API para guardar preferências
-    setTimeout(() => setLoading(false), 1000);
+    try {
+      await notificationService.saveSettings(settings);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (!settings) return null;
 
   return (
     <SafeAreaView style={styles.container}>

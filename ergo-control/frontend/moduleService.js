@@ -62,6 +62,8 @@ const MAX_IMU_SAMP = 64;   // firmware usa no máximo 26
 // ─── Estado interno ───────────────────────────────────────────────────────────
 let socket        = null;
 let listeners     = new Map();   // id → callback(rawData, parsedData)
+let closeListeners = new Map();  // id → callback(), só chamado em desconexões INESPERADAS
+let expectedClose  = false;      // true enquanto um disconnect() intencional está em curso
 let emgBuffer     = [];          // buffer de monitorização EMG
 let imuBuffer     = [];          // buffer de monitorização IMU — cada item é [pitch, roll]
 let calibBuffer   = [];          // buffer exclusivo da calibração
@@ -270,6 +272,7 @@ const moduleService = {
 
     recvBuffer = Buffer.alloc(0);
     textLineBuf = '';
+    expectedClose = false;
 
     await bindToModuleWifi();
 
@@ -300,6 +303,12 @@ const moduleService = {
         console.log('[ModuleService] TCP fechado');
         socket = null;
         onClose && onClose();
+        if (!expectedClose) {
+          // Ligação caiu sem ter sido pedida (ex: saíste do alcance da
+          // Wi-Fi do módulo, ou o módulo desligou-se) — avisa quem estiver
+          // interessado (ex: notificação de estado do dispositivo).
+          closeListeners.forEach((cb) => cb());
+        }
       });
 
       socket.on('error', (e) => {
@@ -316,6 +325,7 @@ const moduleService = {
     if (socket) {
       const s = socket;
       socket = null; // marca já como desligado para o resto da app (isConnected/ensureConnected)
+      expectedClose = true; // este close vem de nós — não é uma desconexão inesperada
       try {
         // Fecho gracioso (FIN) em vez de destroy() abrupto (RST) — a ponte
         // Wi-Fi↔UART do módulo parece não detetar bem um cliente a cair de
@@ -447,6 +457,15 @@ const moduleService = {
 
   removeListener(id) {
     listeners.delete(id);
+  },
+
+  /** callback() chamado só quando a ligação cai de forma inesperada (não via disconnect()). */
+  addCloseListener(id, callback) {
+    closeListeners.set(id, callback);
+  },
+
+  removeCloseListener(id) {
+    closeListeners.delete(id);
   },
 
   isConnected() {

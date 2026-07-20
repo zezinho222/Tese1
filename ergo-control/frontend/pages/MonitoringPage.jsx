@@ -20,11 +20,19 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import moduleService from '../moduleService';
 import syncService from '../syncService';
+import { normalizeByMVC } from '../utils/emgProcessing';
+import { createAlertTracker } from '../utils/alertTracker';
+import notificationService from '../notificationService';
 
 
 const STORAGE_KEY    = '@ergocontrol/connected_module';
 const DISPLAY_POINTS = 20;  // quantos pontos mostrar no gráfico
 const REFRESH_MS     = 300; // intervalo de atualização do gráfico
+
+// ── Limites de alerta ────────────────────────────────────────────────────
+const EMG_ALERT_MVC_PCT = 80;  // % do MVC calibrado acima do qual é esforço excessivo
+const IMU_ALERT_DEG     = 45;  // graus de pitch/roll acima dos quais é má postura
+const ALERT_DEBOUNCE_MS = 700; // tempo mínimo acima do limite para contar como 1 alerta
 
 // Largura do gráfico = largura do ecrã menos o padding do ScrollView (20*2)
 // e o padding interno dos cards (16*2)
@@ -54,6 +62,8 @@ export default function MonitoringPage({ navigation }) {
   const elapsedRef      = useRef(null);
   const graphIntervalRef = useRef(null);
   const alertCountRef   = useRef(0);
+  const emgAlertRef     = useRef(null);  // tracker de episódios sEMG acima do limite
+  const imuAlertRef     = useRef(null);  // tracker de episódios IMU acima do limite
 
   // ── Carregar módulo ────────────────────────────────────────────────────────
   const loadModule = async () => {
@@ -74,7 +84,20 @@ export default function MonitoringPage({ navigation }) {
     return () => moduleService.removeListener('monitoring');
   }, []);
 
-  // ── Atualização periódica do gráfico ───────────────────────────────────────
+  // ── Notifica se o módulo cair inesperadamente a meio de uma sessão ─────────
+  useEffect(() => {
+    moduleService.addCloseListener('monitoring', () => {
+      if (moduleService.isMonitoring()) {
+        notificationService.notifyDevice(
+          'Módulo desligou-se',
+          'A ligação ao módulo caiu a meio da monitorização.'
+        );
+      }
+    });
+    return () => moduleService.removeCloseListener('monitoring');
+  }, []);
+
+  // ── Atualização periódica do gráfico + deteção de alertas ──────────────────
   const startGraphRefresh = () => {
     graphIntervalRef.current = setInterval(() => {
       const { emgBuffer, imuBuffer } = moduleService.getBuffers();
@@ -82,6 +105,31 @@ export default function MonitoringPage({ navigation }) {
       const imuSlice = imuBuffer.slice(-DISPLAY_POINTS);
       setEmgPoints([...emgSlice]);
       setImuPoints([...imuSlice]);
+
+      // Um alerta só conta quando o valor se mantém acima do limite durante
+      // ALERT_DEBOUNCE_MS seguidos — um episódio contínuo = 1 alerta, não
+      // um por cada amostra (ver utils/alertTracker.js).
+      const now = Date.now();
+
+      if (emgBuffer.length > 0 && localModule?.mvc) {
+        const lastEmg = emgBuffer[emgBuffer.length - 1];
+        const pct = normalizeByMVC(lastEmg, localModule.mvc);
+        if (emgAlertRef.current?.update(pct >= EMG_ALERT_MVC_PCT, now)) {
+          alertCountRef.current += 1;
+          setAlertCount(alertCountRef.current);
+          notificationService.notifyAlert('emg');
+        }
+      }
+
+      if (imuBuffer.length > 0) {
+        const [pitch, roll] = imuBuffer[imuBuffer.length - 1];
+        const badPosture = Math.abs(pitch) > IMU_ALERT_DEG || Math.abs(roll) > IMU_ALERT_DEG;
+        if (imuAlertRef.current?.update(badPosture, now)) {
+          alertCountRef.current += 1;
+          setAlertCount(alertCountRef.current);
+          notificationService.notifyAlert('imu');
+        }
+      }
     }, REFRESH_MS);
   };
 
@@ -133,6 +181,8 @@ export default function MonitoringPage({ navigation }) {
     setError('');
     alertCountRef.current = 0;
     setAlertCount(0);
+    emgAlertRef.current = createAlertTracker(ALERT_DEBOUNCE_MS);
+    imuAlertRef.current = createAlertTracker(ALERT_DEBOUNCE_MS);
     setEmgPoints([]);
     setImuPoints([]);
 
