@@ -23,7 +23,7 @@ const SESSIONS_KEY = '@ergocontrol/sessions';
 const MODULE_KEY   = '@ergocontrol/connected_module';
 const MAX_CHART_POINTS = 200; // limite de pontos guardados por sessão, para gráficos
 
-let syncing = false;              // evita sincronizações concorrentes
+let syncPromise = null;           // promise da sincronização em curso — evita duas em paralelo
 let netUnsubscribe = null;
 let tokenGetter = () => null;     // função que devolve o token atual (evita closures presos a um valor antigo)
 let lastSyncError = null;         // última falha de sync (módulo ou sessões), para mostrar na UI
@@ -144,13 +144,13 @@ async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount, em
 
 /**
  * Devolve as sessões para mostrar no Histórico: sempre a partir do local
- * (fonte de verdade), fazendo primeiro um merge com o backend se houver
- * internet disponível — assim funciona tanto online como offline.
+ * (fonte de verdade), fazendo primeiro um trySyncAll (envia + recebe) se
+ * houver internet disponível — assim funciona tanto online como offline.
+ * Não faz a receção (pull) sozinha: isso corre sempre dentro de
+ * trySyncAll, serializado com o envio, para nunca duplicar sessões.
  */
 async function getMergedSessions(token) {
-  if (token && (await hasInternet())) {
-    await pullRemoteSessions(token);
-  }
+  if (token) await trySyncAll(token);
   const sessions = await readSessions();
   return sessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
 }
@@ -320,30 +320,52 @@ async function syncModule(token) {
 
 // ─── Sincronização geral ───────────────────────────────────────────────────
 
-/** Corre a sincronização de tudo (módulo + sessões). Ignora chamadas concorrentes ou sem internet. */
+/**
+ * Corre a sincronização de tudo (módulo + sessões, envio E receção).
+ * Chamadas concorrentes devolvem a MESMA promise em vez de fazerem cada uma
+ * a sua leitura/escrita do array de sessões ao mesmo tempo — era isso que
+ * duplicava sessões: uma chamada lia o array antes de a outra escrever o
+ * backendId novo, e a escrita mais tardia acabava por apagar essa alteração
+ * (ou por não reconhecer a sessão já criada e voltar a puxá-la do backend
+ * como se fosse nova).
+ */
 async function trySyncAll(token) {
-  if (syncing) return;
+  // O cadeado (syncPromise) tem de ser reservado de forma SÍNCRONA, sem
+  // nenhum await pelo meio — caso contrário, duas chamadas quase em
+  // simultâneo (ex: o listener de rede em App.js + a página a carregar)
+  // passavam as duas a verificação "if (syncPromise)" enquanto ainda
+  // estava livre, e só reservavam o cadeado cada uma depois do seu próprio
+  // await, criando duas sincronizações em paralelo na mesma.
+  if (syncPromise) return syncPromise;
   if (!token) return;
-  if (!(await hasInternet())) return;
 
-  syncing = true;
-  try {
-    // Se há internet real, já não podemos estar na Wi-Fi do módulo (sem
-    // internet) — mas o forceWifiUsage(true) do Android pode ter ficado
-    // "preso" à rede antiga do hotspot (ex: utilizador trocou de rede nas
-    // definições sem passar pelo botão "voltar" do ecrã de configuração).
-    // Isso força TODOS os pedidos HTTP da app pela rede sem internet,
-    // fazendo a sincronização falhar silenciosamente para sempre. Larga
-    // esse "force" aqui, exceto durante uma monitorização ativa (aí o
-    // socket ao módulo ainda é necessário).
-    if (!moduleService.isMonitoring()) {
-      await moduleService.disconnect();
+  syncPromise = (async () => {
+    try {
+      if (!(await hasInternet())) return;
+
+      // Se há internet real, já não podemos estar na Wi-Fi do módulo (sem
+      // internet) — mas o forceWifiUsage(true) do Android pode ter ficado
+      // "preso" à rede antiga do hotspot (ex: utilizador trocou de rede nas
+      // definições sem passar pelo botão "voltar" do ecrã de configuração).
+      // Isso força TODOS os pedidos HTTP da app pela rede sem internet,
+      // fazendo a sincronização falhar silenciosamente para sempre. Larga
+      // esse "force" aqui, exceto durante uma monitorização ativa (aí o
+      // socket ao módulo ainda é necessário).
+      if (!moduleService.isMonitoring()) {
+        await moduleService.disconnect();
+      }
+      await syncModule(token);
+      await syncSessions(token);
+      // Puxa sessões do backend que ainda não existam localmente DEPOIS de
+      // enviar as locais — na mesma operação serializada, para nunca correr
+      // ao mesmo tempo que o envio (ver comentário acima).
+      await pullRemoteSessions(token);
+    } finally {
+      syncPromise = null;
     }
-    await syncModule(token);
-    await syncSessions(token);
-  } finally {
-    syncing = false;
-  }
+  })();
+
+  return syncPromise;
 }
 
 /**
