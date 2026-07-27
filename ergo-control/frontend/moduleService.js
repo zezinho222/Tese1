@@ -27,6 +27,7 @@
  */
 
 import TcpSocket from 'react-native-tcp-socket';
+import NetInfo from '@react-native-community/netinfo';
 import { Buffer } from 'buffer';
 
 const MODULE_IP   = '192.168.4.1';
@@ -75,6 +76,36 @@ let wifiForced    = false;       // se já forçámos o uso da wifi do módulo
 
 let recvBuffer    = Buffer.alloc(0);   // buffer de receção acumulado (frames binários)
 let textLineBuf   = '';                // buffer de linha (modo IMU, texto)
+let netUnsubscribe = null;             // listener de conectividade — deteta perda da Wi-Fi do módulo
+
+// ─── Vigilância da Wi-Fi do módulo ────────────────────────────────────────────
+// Um socket TCP só deteta uma ligação morta quando se tenta mesmo enviar/
+// receber dados por ele (ex: só ao clicar "Parar" ou "Calibrar", que enviam
+// um comando) — sem isso, pode ficar "pendurado" durante muito tempo sem dar
+// erro nenhum. O NetInfo, pelo contrário, sabe de imediato quando o telemóvel
+// desliga da rede Wi-Fi do módulo (ou perde o sinal), por isso usamo-lo para
+// fechar o socket (e notificar) assim que isso acontece, em vez de esperar
+// pela próxima ação do utilizador.
+function startWifiWatch() {
+  if (netUnsubscribe) return;
+  netUnsubscribe = NetInfo.addEventListener((state) => {
+    if (!socket) return; // nada ligado para vigiar
+    if (state.type !== 'wifi' || state.isConnected === false) {
+      console.log('[ModuleService] Wi-Fi do módulo perdida — a fechar ligação.');
+      try { socket.destroy(); } catch {}
+      // Não mexe em expectedClose nem chama closeListeners aqui — o
+      // destroy() dispara o 'close' do socket (ver connect()), que já trata
+      // disto como desconexão inesperada e notifica quem estiver à escuta.
+    }
+  });
+}
+
+function stopWifiWatch() {
+  if (netUnsubscribe) {
+    netUnsubscribe();
+    netUnsubscribe = null;
+  }
+}
 
 // ─── Wi-Fi forçado (Android) ──────────────────────────────────────────────────
 async function bindToModuleWifi() {
@@ -290,6 +321,12 @@ const moduleService = {
           // firmware. Só depois de o enviar é que avisamos quem chamou
           // connect() que já pode enviar comandos reais.
           socket.write('Olá\n');
+          // Reforço a nível de TCP — ajuda o SO a detetar mais cedo uma
+          // ligação morta mesmo sem tráfego de dados (ex: módulo parado,
+          // sem monitorização em curso). A deteção "instantânea" real vem
+          // do NetInfo (startWifiWatch), isto é só complementar.
+          try { socket.setKeepAlive(true, 1000); } catch {}
+          startWifiWatch();
 
           setTimeout(() => {
             onOpen && onOpen();
@@ -302,6 +339,7 @@ const moduleService = {
       socket.on('close', () => {
         console.log('[ModuleService] TCP fechado');
         socket = null;
+        stopWifiWatch();
         onClose && onClose();
         if (!expectedClose) {
           // Ligação caiu sem ter sido pedida (ex: saíste do alcance da
@@ -376,15 +414,25 @@ const moduleService = {
     if (!ok) return false;
 
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    // 2500ms deixava margem demasiado apertada sobre o HAL_Delay(2000) do
+    // firmware: contando só a partir do send() em JS (sem contar a latência
+    // Wi-Fi + ponte UART até o STM32 REALMENTE começar o delay), o comando
+    // seguinte por vezes chegava ainda dentro da janela bloqueada e era
+    // perdido — sintoma: reconectar depois de uma queda funcionava bem na
+    // Monitorização (que tem um await a gravar a sessão localmente antes de
+    // enviar o modo, dando folga extra sem querer) mas falhava sempre na
+    // Calibração (que envia "EMG" logo a seguir a isto, sem folga nenhuma),
+    // dando sempre MVC 0.0000 por a calibração nunca chegar a arrancar de
+    // facto no módulo.
     if (offsetValue != null) {
       this.sendCommand('POT');
       this.sendCommand(String(offsetValue));
-      await wait(2500); // > HAL_Delay(2000) do handler de POT no firmware
+      await wait(3200); // > HAL_Delay(2000) do handler de POT no firmware + margem de latência
     }
     if (freqValue != null) {
       this.sendCommand('FREQ');
       this.sendCommand(String(freqValue));
-      await wait(2500); // > HAL_Delay(2000) do handler de FREQ no firmware
+      await wait(3200); // > HAL_Delay(2000) do handler de FREQ no firmware + margem de latência
     }
     return true;
   },

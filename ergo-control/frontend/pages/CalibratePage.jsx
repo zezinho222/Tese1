@@ -187,6 +187,13 @@ export default function CalibratePage({ navigation }) {
       mvc = null;
     }
 
+    // Um MVC de 0.0000 (ou nulo) significa que não foi captado sinal
+    // nenhum — normalmente o sensor está mal colocado ou o módulo não
+    // estava mesmo a adquirir. Não conta como calibração válida: fica por
+    // calibrar, para o botão voltar a mostrar "Calibrar" em vez de
+    // "OK"/"Repetir", e o utilizador percebe que tem de repetir.
+    const valid = mvc != null && mvc > 0;
+
     // Grava sempre localmente primeiro (offline-first) — funciona mesmo
     // ligado à Wi-Fi do módulo, sem internet. A sincronização com o backend
     // fica a cargo do syncService, que tenta já e volta a tentar assim que
@@ -194,10 +201,11 @@ export default function CalibratePage({ navigation }) {
     try {
       const mod = await syncService.getLocalModule();
       if (mod) {
-        const updated = await syncService.queueModuleUpdate({
-          mvc,
-          calibrated: { ...mod.calibrated, sEMG: true },
-        });
+        const updated = await syncService.queueModuleUpdate(
+          valid
+            ? { mvc, calibrated: { ...mod.calibrated, sEMG: true } }
+            : { mvc: null, calibrated: { ...mod.calibrated, sEMG: false } }
+        );
         setLocalModule(updated);
         await syncService.trySyncAll(token);
       }
@@ -206,7 +214,23 @@ export default function CalibratePage({ navigation }) {
     }
 
     setSaving(false);
-    setCalStep(CAL_DONE);
+    if (valid) {
+      setCalStep(CAL_DONE);
+    } else if (!buffer || buffer.length === 0) {
+      // Buffer completamente vazio (não só um MVC baixo) — normalmente
+      // significa que não chegou UM ÚNICO byte de dados do módulo durante
+      // os 5s de aquisição. É o sintoma típico de a ponte Wi-Fi↔UART do
+      // módulo ter ficado "presa" numa ligação anterior que caiu de forma
+      // abrupta (ex: perda de Wi-Fi a meio de uma sessão) — o TCP liga-se
+      // (handshake aceite), mas o módulo continua a "conversar" com o
+      // cliente antigo e nunca envia dados ao novo. Reconectar por si só
+      // não resolve; é preciso reiniciar fisicamente o módulo.
+      setCalError('Não chegaram dados do módulo durante a aquisição. Se houve uma perda de Wi-Fi recente, desliga e volta a conectar o módulo e tenta novamente.');
+      setCalStep(CAL_IDLE);
+    } else {
+      setCalError('MVC inválido (0.0000). Confirma que o sensor está bem colocado e repete a calibração.');
+      setCalStep(CAL_IDLE);
+    }
   };
 
   const resetCalibration = () => {
