@@ -21,6 +21,7 @@ import moduleService from './moduleService';
 
 const SESSIONS_KEY = '@ergocontrol/sessions';
 const MODULE_KEY   = '@ergocontrol/connected_module';
+const PENDING_DELETES_KEY = '@ergocontrol/pending_session_deletes';
 const MAX_CHART_POINTS = 200; // limite de pontos guardados por sessão, para gráficos
 
 let syncPromise = null;           // promise da sincronização em curso — evita duas em paralelo
@@ -72,6 +73,20 @@ async function readModule() {
 
 async function writeModule(moduleData) {
   await AsyncStorage.setItem(MODULE_KEY, JSON.stringify(moduleData));
+}
+
+/** IDs (backendId) de sessões apagadas localmente sem internet real, que ainda faltam apagar no backend. */
+async function readPendingDeletes() {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_DELETES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writePendingDeletes(ids) {
+  await AsyncStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(ids));
 }
 
 /** Verdadeiro só se houver mesmo acesso à internet (não conta o Wi-Fi do módulo, sem internet). */
@@ -161,11 +176,18 @@ async function pullRemoteSessions(token) {
     const res = await api.getSessions(token);
     if (!res?.success || !Array.isArray(res.sessions)) return;
 
+    // Sessões ainda por apagar no backend (apagadas localmente sem internet
+    // real) não podem ser tratadas como "novas" só porque ainda existem lá —
+    // sem isto, ao apagar offline, a próxima sincronização voltava a puxar a
+    // mesma sessão do backend como se nunca tivesse sido apagada.
+    const pendingDeletes = new Set(await readPendingDeletes());
+    const remoteSessions = res.sessions.filter((remote) => !pendingDeletes.has(remote._id));
+
     const local = await readSessions();
     const knownBackendIds = new Set(local.filter((s) => s.backendId).map((s) => s.backendId));
-    const remoteIds = new Set(res.sessions.map((remote) => remote._id));
+    const remoteIds = new Set(remoteSessions.map((remote) => remote._id));
 
-    const newOnes = res.sessions
+    const newOnes = remoteSessions
       .filter((remote) => !knownBackendIds.has(remote._id))
       .map((remote) => ({
         localId: generateLocalId(),
@@ -197,19 +219,54 @@ async function pullRemoteSessions(token) {
 }
 
 /**
- * Apaga uma sessão: remove sempre localmente (fonte de verdade imediata) e,
- * se já estiver sincronizada com o backend e houver internet, apaga-a lá
- * também — para o Histórico e o Perfil ficarem sempre em conformidade com a
- * base de dados.
+ * Apaga uma sessão: remove sempre localmente (fonte de verdade imediata) e
+ * tenta já apagá-la também no backend. Se não houver internet real (ex:
+ * offline, ou ligado apenas à Wi-Fi do módulo), o backendId fica guardado
+ * numa fila de "por apagar" — syncPendingDeletes (chamado dentro de
+ * trySyncAll) tenta de novo assim que houver internet, para o Histórico e o
+ * Perfil ficarem sempre em conformidade com a base de dados, mais cedo ou
+ * mais tarde.
  */
 async function deleteSession(token, localId) {
   const sessions = await readSessions();
   const target = sessions.find((s) => s.localId === localId);
   await writeSessions(sessions.filter((s) => s.localId !== localId));
 
-  if (target?.backendId && token) {
-    await api.deleteSession(token, target.backendId).catch(() => {});
+  // Nunca chegou a existir no backend (sessão só local, ainda por
+  // sincronizar) — não há nada para apagar lá.
+  if (!target?.backendId) return;
+
+  if (token) {
+    try {
+      const res = await api.deleteSession(token, target.backendId);
+      if (res?.success) return; // já apagada no backend — não fica pendente
+    } catch {
+      // sem internet real — cai para a fila de pendentes abaixo
+    }
   }
+
+  const pending = await readPendingDeletes();
+  if (!pending.includes(target.backendId)) {
+    await writePendingDeletes([...pending, target.backendId]);
+  }
+}
+
+/** Tenta apagar no backend todas as sessões marcadas como "por apagar" (ver deleteSession). */
+async function syncPendingDeletes(token) {
+  if (!token) return;
+  const pending = await readPendingDeletes();
+  if (pending.length === 0) return;
+
+  const stillPending = [];
+  for (const backendId of pending) {
+    try {
+      const res = await api.deleteSession(token, backendId);
+      if (!res?.success) stillPending.push(backendId);
+    } catch {
+      stillPending.push(backendId); // ainda sem internet real — tenta na próxima
+    }
+  }
+  await writePendingDeletes(stillPending);
 }
 
 /** Tenta enviar ao backend todas as sessões locais ainda não sincronizadas. */
@@ -380,6 +437,10 @@ async function trySyncAll(token) {
       }
       await syncModule(token);
       await syncSessions(token);
+      // Tenta apagar no backend qualquer sessão apagada localmente enquanto
+      // offline, ANTES de puxar sessões remotas — para essa sessão não ser
+      // trazida de volta na mesma sincronização em que finalmente é apagada.
+      await syncPendingDeletes(token);
       // Puxa sessões do backend que ainda não existam localmente DEPOIS de
       // enviar as locais — na mesma operação serializada, para nunca correr
       // ao mesmo tempo que o envio (ver comentário acima).
