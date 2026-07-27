@@ -218,9 +218,10 @@ export default function ModulesPage({ navigation }) {
 
           {/* ── Botão Conectar ── */}
           <TouchableOpacity
-            style={sharedStyles.primaryButton}
+            style={[sharedStyles.primaryButton, !!localModule && styles.disabledBtn]}
             onPress={handleConnectPress}
             activeOpacity={0.85}
+            disabled={!!localModule}
           >
             <Text style={sharedStyles.primaryButtonText}>+ Conectar Módulo</Text>
           </TouchableOpacity>
@@ -463,6 +464,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginHorizontal: 0,
     marginTop: 0,
+  },
+  disabledBtn: {
+    opacity: 0.5,
   },
   overlay: {
     flex: 1,

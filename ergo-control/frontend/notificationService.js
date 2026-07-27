@@ -5,10 +5,12 @@
  * e guardadas em AsyncStorage — para não dependerem de estar com a app
  * aberta nem de haver internet.
  */
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
 const SETTINGS_KEY = '@ergocontrol/notification_settings';
+const CHANNEL_ID = 'ergocontrol-alerts';
 
 const DEFAULT_SETTINGS = {
   notifications: true, // Alertas de Postura → Notificações
@@ -17,13 +19,44 @@ const DEFAULT_SETTINGS = {
 };
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
+  // shouldPlaySound tem de ser lido do próprio pedido de notificação — se
+  // ficar fixo em false, nenhuma notificação toca som enquanto a app está em
+  // primeiro plano (é precisamente quando os alertas de postura disparam,
+  // durante a monitorização), independentemente do toggle "Som" estar ativo.
+  // Usa optional chaining: se o handler lançar uma exceção aqui, o
+  // expo-notifications não mostra NADA (nem o banner) — ver
+  // NotificationsHandler.js, o catch chama handleError em vez de mostrar.
+  handleNotification: async (notification) => ({
     shouldShowBanner: true,
     shouldShowList: true,
-    shouldPlaySound: false, // decidido dinamicamente por notificação (ver send() abaixo)
+    shouldPlaySound: !!notification?.request?.content?.sound,
     shouldSetBadge: false,
   }),
 });
+
+// Android 8+ ignora o campo "sound" do pedido se o canal usado não tiver som
+// configurado — canais não podem ser reconfigurados depois de criados, por
+// isso criamos um canal próprio (em vez de usar o "default" do Expo, que
+// pode já ter sido criado sem som numa instalação anterior).
+// Promise cacheada e aguardada em send() antes de agendar — criá-lo apenas
+// "fire-and-forget" ao carregar o módulo arriscava agendar notificações com
+// channelId ainda inexistente (canal não pronto), que o Android descarta em
+// silêncio sem mostrar nada.
+let androidChannelPromise = null;
+function ensureAndroidChannel() {
+  if (Platform.OS !== 'android') return Promise.resolve();
+  if (!androidChannelPromise) {
+    androidChannelPromise = Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+      name: 'Alertas ErgoControl',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      vibrationPattern: [0, 250, 250, 250],
+    }).catch((e) => {
+      console.warn('[notificationService] Falha ao criar canal Android:', e);
+    });
+  }
+  return androidChannelPromise;
+}
 
 let permissionRequested = false;
 
@@ -52,10 +85,20 @@ async function saveSettings(settings) {
 async function send(title, body, { sound } = {}) {
   const granted = await ensurePermission();
   if (!granted) return;
-  await Notifications.scheduleNotificationAsync({
-    content: { title, body, sound: sound ? 'default' : undefined },
-    trigger: null, // imediata
-  });
+  await ensureAndroidChannel();
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: sound ? 'default' : undefined,
+        ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
+      },
+      trigger: null, // imediata
+    });
+  } catch (e) {
+    console.warn('[notificationService] Falha ao agendar notificação:', e);
+  }
 }
 
 /** Alerta de sEMG/IMU confirmado durante uma monitorização (ver MonitoringPage). */

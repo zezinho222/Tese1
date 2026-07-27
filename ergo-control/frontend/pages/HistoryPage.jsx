@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
@@ -47,6 +48,8 @@ export default function HistoryPage({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState('');
   const [online,     setOnline]     = useState(true); // internet real, para escolher a mensagem de sync certa
+  const [sessionToDelete, setSessionToDelete] = useState(null); // localId da sessão a confirmar apagar
+  const [deleting,   setDeleting]   = useState(false);
 
   // ── Carregar sessões (local + merge com backend quando há internet) ───────
   const loadSessions = async (isRefresh = false) => {
@@ -70,6 +73,21 @@ export default function HistoryPage({ navigation }) {
   };
 
   useFocusEffect(useCallback(() => { loadSessions(); }, []));
+
+  // ── Apagar sessão (local + backend) ────────────────────────────────────────
+  const handleDeleteSession = async () => {
+    if (!sessionToDelete) return;
+    setDeleting(true);
+    try {
+      await syncService.deleteSession(token, sessionToDelete);
+      setSessions((prev) => prev.filter((s) => s.localId !== sessionToDelete));
+    } catch {
+      setError('Erro ao apagar sessão.');
+    } finally {
+      setDeleting(false);
+      setSessionToDelete(null);
+    }
+  };
 
   // ── Sessões recentes (últimas 5) ───────────────────────────────────────────
   const recentSessions = sessions.slice(0, 5);
@@ -136,7 +154,17 @@ export default function HistoryPage({ navigation }) {
                         <Text style={styles.sensorBadge}>{sensorLabel}</Text>
                       </View>
                     </View>
-                    <Text style={styles.sessionDate}>{formatDate(session.startTime)}</Text>
+                    <View style={styles.sessionHeaderRight}>
+                      <Text style={styles.sessionDate}>{formatDate(session.startTime)}</Text>
+                      <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => setSessionToDelete(session.localId)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.deleteBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   {session.synced === false && (
@@ -198,6 +226,40 @@ export default function HistoryPage({ navigation }) {
           </TouchableOpacity>
         </View>
       )}*/}
+
+      {/* ── Modal: Confirmar apagar sessão ── */}
+      <Modal
+        visible={!!sessionToDelete}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSessionToDelete(null)}
+      >
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setSessionToDelete(null)}>
+          <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
+            <Text style={styles.modalTitle}>
+              Tens a certeza que{'\n'}queres apagar esta sessão?
+            </Text>
+            <TouchableOpacity
+              style={[sharedStyles.primaryButton, sharedStyles.confirmButton]}
+              onPress={handleDeleteSession}
+              activeOpacity={0.85}
+              disabled={deleting}
+            >
+              {deleting
+                ? <ActivityIndicator color={colors.white} />
+                : <Text style={sharedStyles.confirmButtonText}>Sim, apagar!</Text>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[sharedStyles.primaryButton, sharedStyles.cancelButton]}
+              onPress={() => setSessionToDelete(null)}
+              activeOpacity={0.85}
+            >
+              <Text style={sharedStyles.cancelButtonText}>Não, cancelar!</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -317,10 +379,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 1,
   },
+  sessionHeaderRight: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
   sessionDate: {
     fontSize: 12,
     fontWeight: '500',
     color: colors.text.secondary,
+  },
+  deleteBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text.red,
   },
 
   /* ── Estado de sincronização ── */
@@ -413,5 +492,30 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     lineHeight: 36,
+  },
+
+  /* ── Modal: apagar sessão ── */
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text.primary,
+    textAlign: 'center',
+    lineHeight: 26,
   },
 });

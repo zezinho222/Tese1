@@ -163,6 +163,7 @@ async function pullRemoteSessions(token) {
 
     const local = await readSessions();
     const knownBackendIds = new Set(local.filter((s) => s.backendId).map((s) => s.backendId));
+    const remoteIds = new Set(res.sessions.map((remote) => remote._id));
 
     const newOnes = res.sessions
       .filter((remote) => !knownBackendIds.has(remote._id))
@@ -180,11 +181,34 @@ async function pullRemoteSessions(token) {
         imuData: remote.imuData ?? [],
       }));
 
-    if (newOnes.length > 0) {
-      await writeSessions([...newOnes, ...local]);
+    // Sessões já sincronizadas (com backendId) que deixaram de existir no
+    // backend (ex: apagadas noutro dispositivo) são removidas localmente —
+    // sem isto, o Histórico e o Perfil continuavam a contar sessões já
+    // eliminadas da base de dados. Sessões ainda por sincronizar (sem
+    // backendId) não são tocadas.
+    const stillValid = local.filter((s) => !s.backendId || remoteIds.has(s.backendId));
+
+    if (newOnes.length > 0 || stillValid.length !== local.length) {
+      await writeSessions([...newOnes, ...stillValid]);
     }
   } catch {
     // sem internet real ou backend em baixo — ignora, mantém o que já está local
+  }
+}
+
+/**
+ * Apaga uma sessão: remove sempre localmente (fonte de verdade imediata) e,
+ * se já estiver sincronizada com o backend e houver internet, apaga-a lá
+ * também — para o Histórico e o Perfil ficarem sempre em conformidade com a
+ * base de dados.
+ */
+async function deleteSession(token, localId) {
+  const sessions = await readSessions();
+  const target = sessions.find((s) => s.localId === localId);
+  await writeSessions(sessions.filter((s) => s.localId !== localId));
+
+  if (target?.backendId && token) {
+    await api.deleteSession(token, target.backendId).catch(() => {});
   }
 }
 
@@ -396,6 +420,7 @@ export const syncService = {
   queueNewSession,
   queueSessionEnd,
   getMergedSessions,
+  deleteSession,
   queueModuleSave,
   queueModuleUpdate,
   getLocalModule,
