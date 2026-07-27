@@ -65,6 +65,18 @@ export default function MonitoringPage({ navigation }) {
   const emgAlertRef     = useRef(null);  // tracker de episódios sEMG acima do limite
   const imuAlertRef     = useRef(null);  // tracker de episódios IMU acima do limite
 
+  // Espelham estado em refs para o listener de queda de ligação (registado
+  // uma única vez, ver useEffect abaixo) poder ler sempre o valor mais
+  // recente — um closure normal ficaria preso aos valores da primeira
+  // renderização.
+  const isMonitoringRef = useRef(false);
+  const tokenRef        = useRef(token);
+  const localModuleRef  = useRef(null);
+  const elapsedSecRef   = useRef(0);
+
+  useEffect(() => { tokenRef.current = token; }, [token]);
+  useEffect(() => { localModuleRef.current = localModule; }, [localModule]);
+
   // ── Carregar módulo ────────────────────────────────────────────────────────
   const loadModule = async () => {
     try {
@@ -128,7 +140,14 @@ export default function MonitoringPage({ navigation }) {
   // ── Temporizador de sessão ─────────────────────────────────────────────────
   const startTimer = () => {
     setElapsedSec(0);
-    elapsedRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000);
+    elapsedSecRef.current = 0;
+    elapsedRef.current = setInterval(() => {
+      setElapsedSec((s) => {
+        const next = s + 1;
+        elapsedSecRef.current = next;
+        return next;
+      });
+    }, 1000);
   };
 
   const stopTimer = () => {
@@ -197,23 +216,28 @@ export default function MonitoringPage({ navigation }) {
     // se não houver internet; o listener em App.js trata disso mais tarde.
     syncService.trySyncAll(token);
 
+    isMonitoringRef.current = true;
     setIsMonitoring(true);
     startTimer();
     startGraphRefresh();
   };
 
-  // ── Confirmar paragem ──────────────────────────────────────────────────────
-  const handleConfirmStop = async () => {
-    setShowStopModal(false);
+  // ── Parar e guardar a sessão em curso ───────────────────────────────────────
+  // Partilhado entre a paragem manual (botão + modal de confirmação) e a
+  // paragem automática quando a ligação ao módulo cai a meio (ver o
+  // addCloseListener abaixo) — por isso usa sempre refs (tokenRef,
+  // localModuleRef, elapsedSecRef) em vez de fechar sobre o estado da
+  // renderização em que foi definida.
+  const stopAndSaveSession = async () => {
     setSaving(true);
 
     stopTimer();
     stopGraphRefresh();
 
-    const { emgBuffer, imuBuffer } = moduleService.stopMonitoring(); // envia IDLE internamente
+    const { emgBuffer, imuBuffer } = moduleService.stopMonitoring(); // envia IDLE internamente (falha em silêncio se já não há ligação)
 
     const endTime  = new Date();
-    const duration = elapsedSec;
+    const duration = elapsedSecRef.current;
 
     // Atualiza a sessão local com os dados finais — sempre grava, mesmo offline.
     // Os buffers são reduzidos (downsample) antes de guardar, para não gravar
@@ -222,19 +246,40 @@ export default function MonitoringPage({ navigation }) {
       await syncService.queueSessionEnd(sessionIdRef.current, {
         endTime:    endTime.toISOString(),
         duration,
-        mvc:        localModule?.mvc ?? null,
+        mvc:        localModuleRef.current?.mvc ?? null,
         alertCount: alertCountRef.current,
         emgData:    syncService.downsampleArray(emgBuffer),
         imuData:    syncService.downsampleArray(imuBuffer),
       });
-      syncService.trySyncAll(token);
+      syncService.trySyncAll(tokenRef.current);
     }
 
     sessionIdRef.current = null;
+    isMonitoringRef.current = false;
     setIsMonitoring(false);
     setElapsedSec(0);
     setSaving(false);
   };
+
+  // ── Confirmar paragem (manual) ───────────────────────────────────────────────
+  const handleConfirmStop = async () => {
+    setShowStopModal(false);
+    await stopAndSaveSession();
+  };
+
+  // ── Paragem automática ao perder a ligação ao módulo a meio da sessão ───────
+  // Regista-se uma única vez (não depende de closures sobre isMonitoring/
+  // elapsedSec/etc — usa sempre os refs acima) para nunca ficar com dados
+  // desatualizados, independentemente de quantas renderizações já passaram.
+  useEffect(() => {
+    moduleService.addCloseListener('monitoring', () => {
+      if (!isMonitoringRef.current) return; // não estava a monitorizar — nada a fazer aqui
+      setShowStopModal(false);
+      setError('A ligação ao módulo desligou-se, mas a sessão foi guardada.');
+      stopAndSaveSession();
+    });
+    return () => moduleService.removeCloseListener('monitoring');
+  }, []);
 
   // ── Cleanup ao desmontar ───────────────────────────────────────────────────
   useEffect(() => {

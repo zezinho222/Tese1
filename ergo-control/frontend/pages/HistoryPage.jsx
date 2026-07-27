@@ -89,8 +89,8 @@ export default function HistoryPage({ navigation }) {
     }
   };
 
-  // ── Sessões recentes (últimas 5) ───────────────────────────────────────────
-  const recentSessions = sessions.slice(0, 5);
+  // ── Todas as sessões ────────────────────────────────────────────────────────
+  const recentSessions = sessions;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -127,7 +127,7 @@ export default function HistoryPage({ navigation }) {
             </View>
           )}
 
-          <Text style={styles.sectionLabel}>Sessões Recentes</Text>
+          <Text style={styles.sectionLabel}>Todas as Sessões</Text>
 
           {recentSessions.length === 0 && error === '' ? (
             <View style={[sharedStyles.card, styles.emptyCard]}>

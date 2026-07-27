@@ -38,11 +38,13 @@ function formatTime(isoStr) {
 }
 
 function formatDuration(sec) {
-  if (!sec) return '0m';
+  if (!sec) return '0s';
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}m`;
-  return `${m}m`;
+  const s = Math.floor(sec % 60);
+  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+  if (m > 0) return `${m}m ${s.toString().padStart(2, '0')}s`;
+  return `${s}s`;
 }
 
 export default function HistoryDetailPage({ navigation, route }) {
