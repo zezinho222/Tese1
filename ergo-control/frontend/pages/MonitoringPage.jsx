@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,22 +17,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-gifted-charts';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../api';
 import moduleService from '../moduleService';
-import syncService from '../syncService';
-import { normalizeByMVC } from '../utils/emgProcessing';
-import { createAlertTracker } from '../utils/alertTracker';
-import notificationService from '../notificationService';
+import monitoringService from '../monitoringService';
 
 
-const STORAGE_KEY    = '@ergocontrol/connected_module';
-const DISPLAY_POINTS = 20;  // quantos pontos mostrar no gráfico
-const REFRESH_MS     = 300; // intervalo de atualização do gráfico
-
-// ── Limites de alerta ────────────────────────────────────────────────────
-const EMG_ALERT_MVC_PCT = 80;  // % do MVC calibrado acima do qual é esforço excessivo
-const IMU_ALERT_DEG     = 45;  // graus de pitch/roll acima dos quais é má postura
-const ALERT_DEBOUNCE_MS = 700; // tempo mínimo acima do limite para contar como 1 alerta
+const STORAGE_KEY = '@ergocontrol/connected_module';
 
 // Largura do gráfico = largura do ecrã menos o padding do ScrollView (20*2)
 // e o padding interno dos cards (16*2)
@@ -44,38 +33,22 @@ export default function MonitoringPage({ navigation }) {
   const { token } = useAuth();
 
   const [localModule,     setLocalModule]     = useState(null);
-  const [isMonitoring,    setIsMonitoring]    = useState(false);
   const [showStopModal,   setShowStopModal]   = useState(false);
   const [showNoModModal,  setShowNoModModal]  = useState(false);
   const [showNoCal,       setShowNoCal]       = useState(false);
-  const [saving,          setSaving]          = useState(false);
+  const [stopping,        setStopping]        = useState(false); // "a guardar sessão..." — só relevante para a paragem manual, enquanto o ecrã está montado
   const [error,           setError]           = useState('');
 
-  // Dados para o gráfico
-  const [emgPoints,   setEmgPoints]   = useState([]);
-  const [imuPoints,   setImuPoints]   = useState([]);
-  const [elapsedSec,  setElapsedSec]  = useState(0);
-  const [alertCount,  setAlertCount]  = useState(0);
+  // A monitorização em si (timers, deteção de alertas, sessão em curso) vive
+  // em monitoringService — um singleton — e não neste componente. Assim,
+  // navegar para outro ecrã (ex: seta de "voltar") não a interrompe: ela
+  // continua a correr em segundo plano, incluindo o envio de notificações
+  // de alerta. Este ecrã é só uma "vista" que subscreve o estado atual.
+  const [monState, setMonState] = useState(monitoringService.getState());
 
-  const sessionIdRef    = useRef(null);  // ID da sessão no backend
-  const startTimeRef    = useRef(null);
-  const elapsedRef      = useRef(null);
-  const graphIntervalRef = useRef(null);
-  const alertCountRef   = useRef(0);
-  const emgAlertRef     = useRef(null);  // tracker de episódios sEMG acima do limite
-  const imuAlertRef     = useRef(null);  // tracker de episódios IMU acima do limite
+  useEffect(() => monitoringService.subscribe(setMonState), []);
 
-  // Espelham estado em refs para o listener de queda de ligação (registado
-  // uma única vez, ver useEffect abaixo) poder ler sempre o valor mais
-  // recente — um closure normal ficaria preso aos valores da primeira
-  // renderização.
-  const isMonitoringRef = useRef(false);
-  const tokenRef        = useRef(token);
-  const localModuleRef  = useRef(null);
-  const elapsedSecRef   = useRef(0);
-
-  useEffect(() => { tokenRef.current = token; }, [token]);
-  useEffect(() => { localModuleRef.current = localModule; }, [localModule]);
+  const { isMonitoring, elapsedSec, alertCount, emgPoints, imuPoints } = monState;
 
   // ── Carregar módulo ────────────────────────────────────────────────────────
   const loadModule = async () => {
@@ -87,80 +60,13 @@ export default function MonitoringPage({ navigation }) {
 
   useFocusEffect(useCallback(() => { loadModule(); }, []));
 
-  // ── Subscrição aos dados WebSocket ─────────────────────────────────────────
-  useEffect(() => {
-    moduleService.addListener('monitoring', (_, parsed) => {
-      // Os buffers são geridos internamente pelo moduleService;
-      // aqui apenas disparamos uma flag para o intervalo de atualização do gráfico
-    });
-    return () => moduleService.removeListener('monitoring');
-  }, []);
-
-  // A notificação de queda de ligação ao módulo é global (ver App.js) —
-  // dispara independentemente do ecrã em que estás, não só aqui.
-
-  // ── Atualização periódica do gráfico + deteção de alertas ──────────────────
-  const startGraphRefresh = () => {
-    graphIntervalRef.current = setInterval(() => {
-      const { emgBuffer, imuBuffer } = moduleService.getBuffers();
-      const emgSlice = emgBuffer.slice(-DISPLAY_POINTS);
-      const imuSlice = imuBuffer.slice(-DISPLAY_POINTS);
-      setEmgPoints([...emgSlice]);
-      setImuPoints([...imuSlice]);
-
-      // Um alerta só conta quando o valor se mantém acima do limite durante
-      // ALERT_DEBOUNCE_MS seguidos — um episódio contínuo = 1 alerta, não
-      // um por cada amostra (ver utils/alertTracker.js).
-      const now = Date.now();
-
-      if (emgBuffer.length > 0 && localModule?.mvc) {
-        const lastEmg = emgBuffer[emgBuffer.length - 1];
-        const pct = normalizeByMVC(lastEmg, localModule.mvc);
-        if (emgAlertRef.current?.update(pct >= EMG_ALERT_MVC_PCT, now)) {
-          alertCountRef.current += 1;
-          setAlertCount(alertCountRef.current);
-          notificationService.notifyAlert('emg');
-        }
-      }
-
-      if (imuBuffer.length > 0) {
-        const [pitch, roll] = imuBuffer[imuBuffer.length - 1];
-        const badPosture = Math.abs(pitch) > IMU_ALERT_DEG || Math.abs(roll) > IMU_ALERT_DEG;
-        if (imuAlertRef.current?.update(badPosture, now)) {
-          alertCountRef.current += 1;
-          setAlertCount(alertCountRef.current);
-          notificationService.notifyAlert('imu');
-        }
-      }
-    }, REFRESH_MS);
-  };
-
-  const stopGraphRefresh = () => clearInterval(graphIntervalRef.current);
-
-  // ── Temporizador de sessão ─────────────────────────────────────────────────
-  const startTimer = () => {
-    setElapsedSec(0);
-    elapsedSecRef.current = 0;
-    elapsedRef.current = setInterval(() => {
-      setElapsedSec((s) => {
-        const next = s + 1;
-        elapsedSecRef.current = next;
-        return next;
-      });
-    }, 1000);
-  };
-
-  const stopTimer = () => {
-    clearInterval(elapsedRef.current);
-  };
-
   const formatElapsed = (sec) => {
     const m = Math.floor(sec / 60).toString().padStart(2, '0');
     const s = (sec % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
   };
 
-// ── Iniciar monitorização ──────────────────────────────────────────────────
+  // ── Iniciar monitorização ──────────────────────────────────────────────────
   const handleStartMonitoring = async () => {
     if (!localModule) {
       setShowNoModModal(true);
@@ -188,106 +94,20 @@ export default function MonitoringPage({ navigation }) {
     }
 
     setError('');
-    alertCountRef.current = 0;
-    setAlertCount(0);
-    emgAlertRef.current = createAlertTracker(ALERT_DEBOUNCE_MS);
-    imuAlertRef.current = createAlertTracker(ALERT_DEBOUNCE_MS);
-    setEmgPoints([]);
-    setImuPoints([]);
-
-    // Regista a sessão sempre localmente primeiro — funciona mesmo sem internet
-    // (estás ligado à Wi-Fi do módulo, sem acesso à internet, durante a monitorização)
-    const now = new Date();
-    startTimeRef.current = now;
-    const localId = await syncService.queueNewSession({
+    await monitoringService.start({
       sensorType,
-      startTime: now.toISOString(),
       mvc: localModule.mvc ?? null,
+      token,
     });
-    sessionIdRef.current = localId;
-
-    // Inicia monitorização no serviço (envia EMG / IMU / DUAL) ANTES de
-    // tentar sincronizar — trySyncAll desliga o módulo quando há internet
-    // e não está a monitorizar; chamá-lo antes disto podia desligar o
-    // módulo mesmo depois de reconectado, antes de começar a receber dados.
-    moduleService.startMonitoring(sensorType);
-
-    // Tentativa de sincronização em segundo plano — não bloqueia nem falha visivelmente
-    // se não houver internet; o listener em App.js trata disso mais tarde.
-    syncService.trySyncAll(token);
-
-    isMonitoringRef.current = true;
-    setIsMonitoring(true);
-    startTimer();
-    startGraphRefresh();
-  };
-
-  // ── Parar e guardar a sessão em curso ───────────────────────────────────────
-  // Partilhado entre a paragem manual (botão + modal de confirmação) e a
-  // paragem automática quando a ligação ao módulo cai a meio (ver o
-  // addCloseListener abaixo) — por isso usa sempre refs (tokenRef,
-  // localModuleRef, elapsedSecRef) em vez de fechar sobre o estado da
-  // renderização em que foi definida.
-  const stopAndSaveSession = async () => {
-    setSaving(true);
-
-    stopTimer();
-    stopGraphRefresh();
-
-    const { emgBuffer, imuBuffer } = moduleService.stopMonitoring(); // envia IDLE internamente (falha em silêncio se já não há ligação)
-
-    const endTime  = new Date();
-    const duration = elapsedSecRef.current;
-
-    // Atualiza a sessão local com os dados finais — sempre grava, mesmo offline.
-    // Os buffers são reduzidos (downsample) antes de guardar, para não gravar
-    // sessões inteiras ao segundo (podem ter milhares de amostras).
-    if (sessionIdRef.current) {
-      await syncService.queueSessionEnd(sessionIdRef.current, {
-        endTime:    endTime.toISOString(),
-        duration,
-        mvc:        localModuleRef.current?.mvc ?? null,
-        alertCount: alertCountRef.current,
-        emgData:    syncService.downsampleArray(emgBuffer),
-        imuData:    syncService.downsampleArray(imuBuffer),
-      });
-      syncService.trySyncAll(tokenRef.current);
-    }
-
-    sessionIdRef.current = null;
-    isMonitoringRef.current = false;
-    setIsMonitoring(false);
-    setElapsedSec(0);
-    setSaving(false);
   };
 
   // ── Confirmar paragem (manual) ───────────────────────────────────────────────
   const handleConfirmStop = async () => {
     setShowStopModal(false);
-    await stopAndSaveSession();
+    setStopping(true);
+    await monitoringService.stop();
+    setStopping(false);
   };
-
-  // ── Paragem automática ao perder a ligação ao módulo a meio da sessão ───────
-  // Regista-se uma única vez (não depende de closures sobre isMonitoring/
-  // elapsedSec/etc — usa sempre os refs acima) para nunca ficar com dados
-  // desatualizados, independentemente de quantas renderizações já passaram.
-  useEffect(() => {
-    moduleService.addCloseListener('monitoring', () => {
-      if (!isMonitoringRef.current) return; // não estava a monitorizar — nada a fazer aqui
-      setShowStopModal(false);
-      setError('A ligação ao módulo desligou-se, mas a sessão foi guardada.');
-      stopAndSaveSession();
-    });
-    return () => moduleService.removeCloseListener('monitoring');
-  }, []);
-
-  // ── Cleanup ao desmontar ───────────────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      stopTimer();
-      stopGraphRefresh();
-    };
-  }, []);
 
   // ── Gráfico de linha — sEMG (mesmo estilo do gráfico IMU) ───────────────────
   const renderEmgLine = () => {
@@ -476,7 +296,7 @@ export default function MonitoringPage({ navigation }) {
 
       {/* ── Botão Iniciar / Parar ── */}
       <View style={styles.bottomWrap}>
-        {saving ? (
+        {stopping ? (
           <View style={[sharedStyles.primaryButton, styles.startBtn, { backgroundColor: colors.disabled }]}>
             <ActivityIndicator color={colors.white} />
             <Text style={sharedStyles.primaryButtonText}>A guardar sessão...</Text>
