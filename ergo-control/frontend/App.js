@@ -7,6 +7,7 @@ import MainTabs from './navigation/MainTabs';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import syncService from './syncService';
 import moduleService from './moduleService';
+import notificationService from './notificationService';
 
 function RootNavigator() {
   const { user, login, token } = useAuth();
@@ -36,6 +37,21 @@ function RootNavigator() {
   useEffect(() => {
     if (token) syncService.trySyncAll(token);
   }, [token]);
+
+  // Notifica sempre que a ligação ao módulo cai de forma inesperada (ex: a
+  // rede Wi-Fi do módulo desliga-se, ou o próprio módulo desliga-se) —
+  // registado aqui, e não no ecrã de Monitorização, para disparar mesmo que
+  // não estejas nesse ecrã (o socket/monitorização continuam em segundo
+  // plano no moduleService independentemente do ecrã em que estás).
+  useEffect(() => {
+    moduleService.addCloseListener('app', () => {
+      notificationService.notifyDevice(
+        'Módulo desligou-se',
+        'A ligação à rede Wi-Fi do módulo foi perdida.'
+      );
+    });
+    return () => moduleService.removeCloseListener('app');
+  }, []);
 
   // Desliga o módulo (fecho gracioso) sempre que a app vai para segundo
   // plano — é o que acontece quando sais para as Definições trocar de

@@ -84,18 +84,8 @@ export default function MonitoringPage({ navigation }) {
     return () => moduleService.removeListener('monitoring');
   }, []);
 
-  // ── Notifica se o módulo cair inesperadamente a meio de uma sessão ─────────
-  useEffect(() => {
-    moduleService.addCloseListener('monitoring', () => {
-      if (moduleService.isMonitoring()) {
-        notificationService.notifyDevice(
-          'Módulo desligou-se',
-          'A ligação ao módulo caiu a meio da monitorização.'
-        );
-      }
-    });
-    return () => moduleService.removeCloseListener('monitoring');
-  }, []);
+  // A notificação de queda de ligação ao módulo é global (ver App.js) —
+  // dispara independentemente do ecrã em que estás, não só aqui.
 
   // ── Atualização periódica do gráfico + deteção de alertas ──────────────────
   const startGraphRefresh = () => {
