@@ -1,0 +1,137 @@
+/**
+ * exportUtils.js
+ * Geração do conteúdo dos exports da HistoryDetailPage — CSV (só valores,
+ * sem imagens de gráfico) e PDF (relatório completo, incluindo os
+ * gráficos). Os gráficos do PDF são desenhados como SVG diretamente a
+ * partir dos valores guardados (emgData/imuData) em vez de tirar um
+ * "screenshot" do gráfico no ecrã — assim não depende de nenhuma
+ * biblioteca nativa extra (ex: react-native-view-shot) e o resultado é
+ * sempre igual, independentemente do aparelho.
+ */
+
+const CHART_COLORS = {
+  emg:   '#F59E0B',
+  pitch: '#3B82F6',
+  roll:  '#10B981',
+};
+
+function csvEscape(value) {
+  const s = String(value ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** CSV com o resumo da sessão + os valores brutos dos gráficos (sem imagens). */
+export function buildSessionCsv({
+  sessionNumber, sensorLabel, dateStr, timeStr, durationSec, alertCount, mvc, emgData, imuData,
+}) {
+  const lines = [];
+  lines.push('Resumo da Sessão');
+  lines.push(`Sessão,#${sessionNumber}`);
+  lines.push(`Data,${csvEscape(dateStr)}`);
+  lines.push(`Início,${csvEscape(timeStr)}`);
+  lines.push(`Duração (s),${durationSec ?? 0}`);
+  lines.push(`Sensor,${csvEscape(sensorLabel)}`);
+  lines.push(`Alertas,${alertCount ?? 0}`);
+  if (mvc != null) lines.push(`MVC,${mvc}`);
+  lines.push('');
+
+  if (Array.isArray(emgData) && emgData.length > 0) {
+    lines.push('Dados sEMG');
+    lines.push('Amostra,Valor');
+    emgData.forEach((v, i) => lines.push(`${i + 1},${v}`));
+    lines.push('');
+  }
+
+  if (Array.isArray(imuData) && imuData.length > 0) {
+    lines.push('Dados IMU');
+    lines.push('Amostra,Pitch,Roll');
+    imuData.forEach((p, i) => lines.push(`${i + 1},${p?.[0] ?? ''},${p?.[1] ?? ''}`));
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+/** Desenha um gráfico de linha simples em SVG a partir de uma ou mais séries de valores. */
+function svgLineChart(series, { width = 600, height = 220, padding = 24 } = {}) {
+  const allValues = series.flatMap((s) => s.data).filter((v) => typeof v === 'number' && !Number.isNaN(v));
+
+  if (allValues.length === 0) {
+    return `<div style="width:${width}px;height:${height}px;display:flex;align-items:center;justify-content:center;background:#F3F4F6;border-radius:10px;color:#6B7280;font-size:13px;">Sem dados de gráfico guardados para esta sessão</div>`;
+  }
+
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
+  const range = max - min || 1;
+  const n = Math.max(...series.map((s) => s.data.length), 1);
+  const xStep = n > 1 ? (width - padding * 2) / (n - 1) : 0;
+
+  const toPoint = (v, i) => {
+    const x = padding + i * xStep;
+    const y = height - padding - ((v - min) / range) * (height - padding * 2);
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  };
+
+  const polylines = series
+    .map((s) => {
+      if (!s.data.length) return '';
+      const points = s.data.map((v, i) => toPoint(v, i)).join(' ');
+      return `<polyline points="${points}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />`;
+    })
+    .join('');
+
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="background:#F9FAFB;border-radius:10px;border:1px solid #E5E7EB;">${polylines}</svg>`;
+}
+
+/** HTML do relatório completo (resumo + gráficos) a converter em PDF via expo-print. */
+export function buildSessionPdfHtml({
+  sessionNumber, sensorLabel, dateStr, timeStr, durationStr, alertCount, mvc,
+  showEMG, showIMU, emgData, imuData,
+}) {
+  const emgChart = showEMG ? svgLineChart([{ data: emgData || [], color: CHART_COLORS.emg }]) : '';
+  const imuChart = showIMU
+    ? svgLineChart([
+        { data: (imuData || []).map((p) => p?.[0] ?? 0), color: CHART_COLORS.pitch },
+        { data: (imuData || []).map((p) => p?.[1] ?? 0), color: CHART_COLORS.roll },
+      ])
+    : '';
+
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 24px; }
+          h1 { font-size: 22px; margin-bottom: 4px; }
+          h2 { font-size: 16px; margin: 24px 0 8px; }
+          .grid { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0 24px; }
+          .item { min-width: 140px; }
+          .label { font-size: 12px; color: #6B7280; font-weight: 500; }
+          .value { font-size: 18px; font-weight: 700; }
+          .legend { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: #6B7280; }
+          .dot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 6px; vertical-align: middle; }
+        </style>
+      </head>
+      <body>
+        <h1>Sessão #${sessionNumber}</h1>
+        <div class="grid">
+          <div class="item"><div class="label">Data</div><div class="value">${dateStr}</div></div>
+          <div class="item"><div class="label">Início</div><div class="value">${timeStr}</div></div>
+          <div class="item"><div class="label">Duração</div><div class="value">${durationStr}</div></div>
+          <div class="item"><div class="label">Módulos</div><div class="value">${sensorLabel}</div></div>
+          <div class="item"><div class="label">Alertas</div><div class="value">${alertCount ?? 0}</div></div>
+          ${mvc != null ? `<div class="item"><div class="label">MVC</div><div class="value">${mvc}</div></div>` : ''}
+        </div>
+        ${showEMG ? `<h2>sEMG - Resumo da Sessão</h2>${emgChart}` : ''}
+        ${showIMU ? `
+          <h2>IMU - Resumo da Sessão</h2>
+          ${imuChart}
+          <div class="legend">
+            <span><span class="dot" style="background:${CHART_COLORS.pitch}"></span>Pitch</span>
+            <span><span class="dot" style="background:${CHART_COLORS.roll}"></span>Roll</span>
+          </div>
+        ` : ''}
+      </body>
+    </html>
+  `;
+}

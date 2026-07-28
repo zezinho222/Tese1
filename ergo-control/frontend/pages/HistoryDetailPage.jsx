@@ -13,9 +13,13 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-gifted-charts';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import syncService from '../syncService';
+import { buildSessionCsv, buildSessionPdfHtml } from '../utils/exportUtils';
 import ExcelIcon from '../assets/excel.png';
 import PdfIcon from '../assets/pdf.png';
 
@@ -55,6 +59,8 @@ export default function HistoryDetailPage({ navigation, route }) {
   const [sessionNumber, setSessionNumber] = useState(null);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState('');
+  const [exportingCsv, setExportingCsv]   = useState(false);
+  const [exportingPdf, setExportingPdf]   = useState(false);
 
   const loadSession = useCallback(async () => {
     setLoading(true);
@@ -111,6 +117,73 @@ export default function HistoryDetailPage({ navigation, route }) {
 
   const emgData = Array.isArray(session.emgData) ? session.emgData : [];
   const imuData = Array.isArray(session.imuData) ? session.imuData : [];
+
+  // ── Exportar CSV (resumo + valores dos gráficos, sem imagens) ───────────────
+  const handleExportCsv = async () => {
+    if (exportingCsv) return;
+    setExportingCsv(true);
+    setError('');
+    try {
+      const csv = buildSessionCsv({
+        sessionNumber,
+        sensorLabel,
+        dateStr: formatDateOnly(session.startTime),
+        timeStr: formatTime(session.startTime),
+        durationSec: session.duration,
+        alertCount: session.alertCount,
+        mvc: session.mvc,
+        emgData,
+        imuData,
+      });
+      const fileUri = FileSystem.cacheDirectory + `sessao-${sessionNumber}.csv`;
+      await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: 'utf8' });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Exportar CSV',
+          UTI: 'public.comma-separated-values-text',
+        });
+      }
+    } catch {
+      setError('Erro ao exportar CSV.');
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
+  // ── Exportar PDF (relatório completo, incluindo os gráficos) ────────────────
+  const handleExportPdf = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    setError('');
+    try {
+      const html = buildSessionPdfHtml({
+        sessionNumber,
+        sensorLabel,
+        dateStr: formatDateOnly(session.startTime),
+        timeStr: formatTime(session.startTime),
+        durationStr: formatDuration(session.duration),
+        alertCount: session.alertCount,
+        mvc: session.mvc,
+        showEMG,
+        showIMU,
+        emgData,
+        imuData,
+      });
+      const { uri } = await Print.printToFileAsync({ html });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Exportar PDF',
+          UTI: 'com.adobe.pdf',
+        });
+      }
+    } catch {
+      setError('Erro ao exportar PDF.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   // ── Gráfico de linha — sEMG (mesmo estilo do gráfico da Monitorização) ──────
   const renderEmgLine = () => {
@@ -261,6 +334,8 @@ export default function HistoryDetailPage({ navigation, route }) {
           <TouchableOpacity
             style={[sharedStyles.card, styles.exportCard]}
             activeOpacity={0.82}
+            onPress={handleExportCsv}
+            disabled={exportingCsv}
           >
             <View style={[styles.exportIconCircle, styles.exportIconGreen]}>
               <Image source={ExcelIcon} style={styles.exportIconImage} />
@@ -269,13 +344,18 @@ export default function HistoryDetailPage({ navigation, route }) {
               <Text style={styles.exportTitle}>Exportar CSV</Text>
               <Text style={styles.exportSubtitle}>Dados Brutos</Text>
             </View>
-            <Text style={sharedStyles.menuArrow}>›</Text>
+            {exportingCsv
+              ? <ActivityIndicator color={colors.text.secondary} />
+              : <Text style={sharedStyles.menuArrow}>›</Text>
+            }
           </TouchableOpacity>
 
           {/* Exportar PDF */}
           <TouchableOpacity
             style={[sharedStyles.card, styles.exportCard]}
             activeOpacity={0.82}
+            onPress={handleExportPdf}
+            disabled={exportingPdf}
           >
             <View style={[styles.exportIconCircle, styles.exportIconRed]}>
               <Image source={PdfIcon} style={styles.exportIconImage} />
@@ -284,9 +364,18 @@ export default function HistoryDetailPage({ navigation, route }) {
               <Text style={styles.exportTitle}>Exportar PDF</Text>
               <Text style={styles.exportSubtitle}>Relatório completo com gráficos</Text>
             </View>
-            <Text style={sharedStyles.menuArrow}>›</Text>
+            {exportingPdf
+              ? <ActivityIndicator color={colors.text.secondary} />
+              : <Text style={sharedStyles.menuArrow}>›</Text>
+            }
           </TouchableOpacity>
         </View>
+
+        {error !== '' && (
+          <View style={[sharedStyles.helperBox, styles.errorBox]}>
+            <Text style={[sharedStyles.helperText, styles.errorText]}>{error}</Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -474,5 +563,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.text.secondary,
     marginTop: 2,
+  },
+
+  /* ── Erro de exportação ── */
+  errorBox: {
+    backgroundColor: colors.redBackground,
+    borderColor: colors.text.red + '30',
+  },
+  errorText: {
+    color: colors.text.red,
+    fontStyle: 'normal',
+    textAlign: 'center',
   },
 });
