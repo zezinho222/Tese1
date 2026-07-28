@@ -50,14 +50,19 @@ const createSession = async (req, res) => {
     // Só associa o módulo se ele existir mesmo e pertencer a este
     // utilizador — evita ligar a sessão a um módulo de outra conta.
     let moduleId = null;
+    let moduleName = null;
     if (module) {
-      const mod = await Module.findOne({ _id: module, user: req.user._id }).select('_id');
-      if (mod) moduleId = mod._id;
+      const mod = await Module.findOne({ _id: module, user: req.user._id }).select('_id name');
+      if (mod) {
+        moduleId = mod._id;
+        moduleName = mod.name;
+      }
     }
 
     const session = await Session.create({
       user:       req.user._id,
       module:     moduleId,
+      moduleName,
       sensorType,
       startTime:  new Date(startTime),
       endTime:    endTime ? new Date(endTime) : null,

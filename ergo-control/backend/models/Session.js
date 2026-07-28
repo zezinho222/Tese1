@@ -12,6 +12,13 @@ const sessionSchema = new mongoose.Schema(
       ref: 'Module',
       default: null,
     },
+    // Nome do módulo guardado diretamente na sessão (além da referência
+    // acima) — para aparecer já pronto ao consultar a base de dados
+    // diretamente, sem precisar de fazer populate ao Module.
+    moduleName: {
+      type: String,
+      default: null,
+    },
     sensorType: {
       type: String,
       enum: ['EMG', 'IMU', 'DUAL'],
