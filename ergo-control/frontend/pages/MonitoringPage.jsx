@@ -210,19 +210,17 @@ export default function MonitoringPage({ navigation }) {
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <View style={styles.cardHeader}>
               <Text style={styles.sectionTitle}>⚡ sEMG - Atividade Muscular</Text>
-              <View style={styles.cardHeaderRight}>
-                {localModule?.mvc != null && (
-                  <Text style={styles.mvcLabel}>MVC: {localModule.mvc.toFixed(2)}</Text>
-                )}
-                <TouchableOpacity
-                  style={styles.expandBtn}
-                  onPress={() => navigation.navigate('ChartFullscreen', { type: 'EMG' })}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="expand-outline" size={18} color={colors.text.secondary} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={styles.expandBtn}
+                onPress={() => navigation.navigate('ChartFullscreen', { type: 'EMG' })}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="expand-outline" size={18} color={colors.text.secondary} />
+              </TouchableOpacity>
             </View>
+            {localModule?.mvc != null && (
+              <Text style={styles.mvcLabel}>MVC: {localModule.mvc.toFixed(2)}</Text>
+            )}
             <View style={styles.graphArea}>
               {renderEmgLine()}
             </View>
@@ -238,7 +236,7 @@ export default function MonitoringPage({ navigation }) {
         {showIMU && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <View style={styles.cardHeader}>
-              <Text style={styles.sectionTitle}>🧭 IMU - Dados de ola</Text>
+              <Text style={styles.sectionTitle}>🧭 IMU - Dados de Medição Enercial        </Text>
               <TouchableOpacity
                 style={styles.expandBtn}
                 onPress={() => navigation.navigate('ChartFullscreen', { type: 'IMU' })}
@@ -523,11 +521,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
   },
-  cardHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
   sectionTitle: {
     fontSize: 15,
     fontWeight: '700',
@@ -537,6 +530,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.primary,
     fontWeight: '600',
+    marginBottom: 10,
   },
   expandBtn: {
     padding: 4,

@@ -9,6 +9,8 @@
  * sempre igual, independentemente do aparelho.
  */
 
+import { buildTimeAxisLabels } from './chartAxis';
+
 const CHART_COLORS = {
   emg:   '#F59E0B',
   pitch: '#3B82F6',
@@ -52,8 +54,14 @@ export function buildSessionCsv({
   return lines.join('\n');
 }
 
-/** Desenha um gráfico de linha simples em SVG a partir de uma ou mais séries de valores. */
-function svgLineChart(series, { width = 600, height = 220, padding = 24 } = {}) {
+/**
+ * Desenha um gráfico de linha em SVG a partir de uma ou mais séries de
+ * valores, com eixo X (tempo, ver utils/chartAxis.js — a mesma lógica usada
+ * nos gráficos ao vivo no ecrã) e eixo Y (valores, com grelha e etiquetas
+ * numéricas), para o PDF mostrar exatamente a mesma informação que o ecrã.
+ */
+function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = {}) {
+  const padLeft = 44, padRight = 12, padTop = 12, padBottom = 28;
   const allValues = series.flatMap((s) => s.data).filter((v) => typeof v === 'number' && !Number.isNaN(v));
 
   if (allValues.length === 0) {
@@ -64,11 +72,14 @@ function svgLineChart(series, { width = 600, height = 220, padding = 24 } = {}) 
   const max = Math.max(...allValues);
   const range = max - min || 1;
   const n = Math.max(...series.map((s) => s.data.length), 1);
-  const xStep = n > 1 ? (width - padding * 2) / (n - 1) : 0;
+
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
+  const xStep = n > 1 ? plotW / (n - 1) : 0;
 
   const toPoint = (v, i) => {
-    const x = padding + i * xStep;
-    const y = height - padding - ((v - min) / range) * (height - padding * 2);
+    const x = padLeft + i * xStep;
+    const y = padTop + plotH - ((v - min) / range) * plotH;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   };
 
@@ -80,20 +91,46 @@ function svgLineChart(series, { width = 600, height = 220, padding = 24 } = {}) 
     })
     .join('');
 
-  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="background:#F9FAFB;border-radius:10px;border:1px solid #E5E7EB;">${polylines}</svg>`;
+  // Eixo Y — grelha horizontal + valor numérico em cada secção
+  const ySections = 4;
+  let yGridLines = '';
+  let yLabels = '';
+  for (let i = 0; i <= ySections; i++) {
+    const v = min + (range * i) / ySections;
+    const y = padTop + plotH - (i / ySections) * plotH;
+    yGridLines += `<line x1="${padLeft}" y1="${y.toFixed(2)}" x2="${(padLeft + plotW).toFixed(2)}" y2="${y.toFixed(2)}" stroke="#E5E7EB" stroke-width="1" stroke-dasharray="3,3" />`;
+    yLabels += `<text x="${(padLeft - 6).toFixed(2)}" y="${(y + 3).toFixed(2)}" font-size="9" fill="#6B7280" text-anchor="end">${v.toFixed(1)}</text>`;
+  }
+
+  // Eixo X — etiquetas de tempo (mesma lógica dos gráficos no ecrã)
+  let xLabels = '';
+  buildTimeAxisLabels(n, totalSeconds, 5).forEach((label, i) => {
+    if (!label) return;
+    const x = padLeft + i * xStep;
+    xLabels += `<text x="${x.toFixed(2)}" y="${(height - padBottom + 14).toFixed(2)}" font-size="9" fill="#6B7280" text-anchor="middle">${label}</text>`;
+  });
+
+  const axisLines = `
+    <line x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${(padTop + plotH).toFixed(2)}" stroke="#9CA3AF" stroke-width="1" />
+    <line x1="${padLeft}" y1="${(padTop + plotH).toFixed(2)}" x2="${(padLeft + plotW).toFixed(2)}" y2="${(padTop + plotH).toFixed(2)}" stroke="#9CA3AF" stroke-width="1" />
+  `;
+
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="background:#F9FAFB;border-radius:10px;border:1px solid #E5E7EB;">${yGridLines}${axisLines}${polylines}${yLabels}${xLabels}</svg>`;
 }
 
 /** HTML do relatório completo (resumo + gráficos) a converter em PDF via expo-print. */
 export function buildSessionPdfHtml({
-  sessionNumber, sensorLabel, dateStr, timeStr, durationStr, alertCount, mvc,
+  sessionNumber, sensorLabel, dateStr, timeStr, durationStr, durationSec, alertCount, mvc,
   showEMG, showIMU, emgData, imuData,
 }) {
-  const emgChart = showEMG ? svgLineChart([{ data: emgData || [], color: CHART_COLORS.emg }]) : '';
+  const emgChart = showEMG
+    ? svgLineChart([{ data: emgData || [], color: CHART_COLORS.emg }], { totalSeconds: durationSec })
+    : '';
   const imuChart = showIMU
     ? svgLineChart([
         { data: (imuData || []).map((p) => p?.[0] ?? 0), color: CHART_COLORS.pitch },
         { data: (imuData || []).map((p) => p?.[1] ?? 0), color: CHART_COLORS.roll },
-      ])
+      ], { totalSeconds: durationSec })
     : '';
 
   return `

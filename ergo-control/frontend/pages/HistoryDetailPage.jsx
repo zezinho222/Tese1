@@ -20,14 +20,18 @@ import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import syncService from '../syncService';
 import { buildSessionCsv, buildSessionPdfHtml } from '../utils/exportUtils';
+import { buildTimeAxisLabels } from '../utils/chartAxis';
+import ChartTimeAxis from '../components/ChartTimeAxis';
 import ExcelIcon from '../assets/excel.png';
 import PdfIcon from '../assets/pdf.png';
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
 
-// Largura do gráfico = largura do ecrã menos o padding do ScrollView (20*2)
-// e o padding interno dos cards (16*2)
-const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2;
+// Largura do gráfico = largura do ecrã menos o padding do ScrollView (20*2),
+// o padding interno dos cards (16*2) e a largura reservada para as etiquetas
+// do eixo Y (valores)
+const Y_AXIS_LABEL_WIDTH = 38;
+const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2 - Y_AXIS_LABEL_WIDTH;
 
 function formatDateOnly(isoStr) {
   if (!isoStr) return '—';
@@ -163,6 +167,7 @@ export default function HistoryDetailPage({ navigation, route }) {
         dateStr: formatDateOnly(session.startTime),
         timeStr: formatTime(session.startTime),
         durationStr: formatDuration(session.duration),
+        durationSec: session.duration,
         alertCount: session.alertCount,
         mvc: session.mvc,
         showEMG,
@@ -186,6 +191,7 @@ export default function HistoryDetailPage({ navigation, route }) {
   };
 
   // ── Gráfico de linha — sEMG (mesmo estilo do gráfico da Monitorização) ──────
+  // Eixo X = tempo (ao longo da duração real da sessão), eixo Y = valores.
   const renderEmgLine = () => {
     if (!emgData.length) {
       return (
@@ -195,20 +201,35 @@ export default function HistoryDetailPage({ navigation, route }) {
       );
     }
     return (
-      <LineChart
-        data={emgData.map((v) => ({ value: v }))}
-        height={80}
-        width={CHART_WIDTH}
-        color={colors.text.yellow}
-        thickness={2}
-        curved
-        hideDataPoints
-        hideAxesAndRules
-        initialSpacing={0}
-        endSpacing={0}
-        disableScroll
-        adjustToWidth
-      />
+      <>
+        <LineChart
+          data={emgData.map((v) => ({ value: v }))}
+          height={90}
+          width={CHART_WIDTH}
+          color={colors.text.yellow}
+          thickness={2}
+          curved
+          hideDataPoints
+          initialSpacing={4}
+          endSpacing={4}
+          disableScroll
+          adjustToWidth
+          noOfSections={3}
+          yAxisTextStyle={styles.axisText}
+          yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+          yAxisColor={colors.border}
+          xAxisColor={colors.border}
+          rulesColor={colors.border}
+          rulesType="dashed"
+        />
+        <ChartTimeAxis
+          labels={buildTimeAxisLabels(emgData.length, session.duration)}
+          chartWidth={CHART_WIDTH}
+          yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+          initialSpacing={4}
+          endSpacing={4}
+        />
+      </>
     );
   };
 
@@ -223,22 +244,37 @@ export default function HistoryDetailPage({ navigation, route }) {
     }
     const axisColors = [colors.primary, colors.secondary]; // Pitch, Roll
     return (
-      <LineChart
-        dataSet={axisColors.map((axisColor, i) => ({
-          data: imuData.map((p) => ({ value: p?.[i] ?? 0 })),
-          color: axisColor,
-        }))}
-        height={80}
-        width={CHART_WIDTH}
-        thickness={2}
-        curved
-        hideDataPoints
-        hideAxesAndRules
-        initialSpacing={0}
-        endSpacing={0}
-        disableScroll
-        adjustToWidth
-      />
+      <>
+        <LineChart
+          dataSet={axisColors.map((axisColor, i) => ({
+            data: imuData.map((p) => ({ value: p?.[i] ?? 0 })),
+            color: axisColor,
+          }))}
+          height={90}
+          width={CHART_WIDTH}
+          thickness={2}
+          curved
+          hideDataPoints
+          initialSpacing={4}
+          endSpacing={4}
+          disableScroll
+          adjustToWidth
+          noOfSections={3}
+          yAxisTextStyle={styles.axisText}
+          yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+          yAxisColor={colors.border}
+          xAxisColor={colors.border}
+          rulesColor={colors.border}
+          rulesType="dashed"
+        />
+        <ChartTimeAxis
+          labels={buildTimeAxisLabels(imuData.length, session.duration)}
+          chartWidth={CHART_WIDTH}
+          yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+          initialSpacing={4}
+          endSpacing={4}
+        />
+      </>
     );
   };
 
@@ -470,11 +506,11 @@ const styles = StyleSheet.create({
   },
   graphAreaReal: {
     minHeight: 90,
+    paddingVertical: 6,
     backgroundColor: colors.background,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
-    overflow: 'hidden',
     justifyContent: 'center',
   },
   graphEmptyReal: {
@@ -488,6 +524,10 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  axisText: {
+    fontSize: 9,
+    color: colors.text.secondary,
   },
   imuLegendRow: {
     flexDirection: 'row',

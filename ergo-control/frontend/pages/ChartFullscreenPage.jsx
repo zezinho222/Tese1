@@ -16,6 +16,7 @@ import moduleService from '../moduleService';
 
 const DISPLAY_POINTS = 40; // mais pontos no ecrã cheio, para melhor detalhe
 const REFRESH_MS     = 300;
+const Y_AXIS_LABEL_WIDTH = 42;
 
 export default function ChartFullscreenPage({ navigation, route }) {
   const { type } = route.params; // 'EMG' | 'IMU'
@@ -43,7 +44,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
     return () => clearInterval(intervalRef.current);
   }, []);
 
-  const chartWidth  = Math.max(width - 48, 200);
+  const chartWidth  = Math.max(width - 48 - Y_AXIS_LABEL_WIDTH, 160);
   const chartHeight = Math.max(height - 160, 120);
 
   const renderEmgChart = () => {
@@ -63,11 +64,17 @@ export default function ChartFullscreenPage({ navigation, route }) {
         thickness={2}
         curved
         hideDataPoints
-        hideAxesAndRules
-        initialSpacing={0}
-        endSpacing={0}
+        initialSpacing={4}
+        endSpacing={4}
         disableScroll
         adjustToWidth
+        noOfSections={4}
+        yAxisTextStyle={styles.axisText}
+        yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+        yAxisColor={colors.border}
+        xAxisColor={colors.border}
+        rulesColor={colors.border}
+        rulesType="dashed"
       />
     );
   };
@@ -92,11 +99,17 @@ export default function ChartFullscreenPage({ navigation, route }) {
         thickness={2}
         curved
         hideDataPoints
-        hideAxesAndRules
-        initialSpacing={0}
-        endSpacing={0}
+        initialSpacing={4}
+        endSpacing={4}
         disableScroll
         adjustToWidth
+        noOfSections={4}
+        yAxisTextStyle={styles.axisText}
+        yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+        yAxisColor={colors.border}
+        xAxisColor={colors.border}
+        rulesColor={colors.border}
+        rulesType="dashed"
       />
     );
   };
@@ -177,6 +190,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text.secondary,
     fontWeight: '500',
+  },
+  axisText: {
+    fontSize: 9,
+    color: colors.text.secondary,
   },
 
   /* ── Legenda (IMU) ── */
