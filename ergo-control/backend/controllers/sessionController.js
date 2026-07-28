@@ -1,4 +1,5 @@
 const Session = require('../models/Session');
+const Module = require('../models/Module');
 
 // ─── GET /api/sessions ────────────────────────────────────────────────────────
 const getSessions = async (req, res) => {
@@ -30,7 +31,7 @@ const getSession = async (req, res) => {
 // ─── POST /api/sessions ───────────────────────────────────────────────────────
 const createSession = async (req, res) => {
   try {
-    const { sensorType, startTime, endTime, duration, mvc, alertCount, notes } = req.body;
+    const { sensorType, startTime, endTime, duration, mvc, alertCount, notes, module } = req.body;
 
     if (!sensorType || !startTime) {
       return res.status(400).json({
@@ -46,8 +47,17 @@ const createSession = async (req, res) => {
       });
     }
 
+    // Só associa o módulo se ele existir mesmo e pertencer a este
+    // utilizador — evita ligar a sessão a um módulo de outra conta.
+    let moduleId = null;
+    if (module) {
+      const mod = await Module.findOne({ _id: module, user: req.user._id }).select('_id');
+      if (mod) moduleId = mod._id;
+    }
+
     const session = await Session.create({
       user:       req.user._id,
+      module:     moduleId,
       sensorType,
       startTime:  new Date(startTime),
       endTime:    endTime ? new Date(endTime) : null,

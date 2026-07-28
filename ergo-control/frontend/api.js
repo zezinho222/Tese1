@@ -102,10 +102,10 @@ export const api = {
   getSession: async (token, sessionId) =>
     authFetch(`/api/sessions/${sessionId}`, token),
 
-  createSession: async (token, { sensorType, startTime, endTime, duration, mvc, alertCount }) =>
+  createSession: async (token, { sensorType, startTime, endTime, duration, mvc, alertCount, module }) =>
     authFetch('/api/sessions', token, {
       method: 'POST',
-      body: JSON.stringify({ sensorType, startTime, endTime, duration, mvc, alertCount }),
+      body: JSON.stringify({ sensorType, startTime, endTime, duration, mvc, alertCount, module }),
     }),
 
   endSession: async (token, sessionId, { endTime, duration, mvc, alertCount, emgData, imuData }) =>

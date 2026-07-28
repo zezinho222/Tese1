@@ -275,6 +275,15 @@ async function syncSessions(token) {
   const sessions = await readSessions();
   let changed = false;
 
+  // Módulo local atual — lido uma única vez aqui (não guardado na própria
+  // sessão) para associar sempre o módulo mais recentemente sincronizado.
+  // syncModule() já correu antes disto dentro de trySyncAll, por isso, se o
+  // módulo já tiver backendId, é o valor mais fresco possível — mesmo que a
+  // sessão tenha sido criada localmente antes de o módulo estar sincronizado
+  // com o backend (ex: os dois a começar offline, ligados só à Wi-Fi do
+  // módulo, e a internet só chegar depois).
+  const mod = await readModule();
+
   for (let i = 0; i < sessions.length; i++) {
     const s = sessions[i];
     if (s.synced) continue;
@@ -285,6 +294,7 @@ async function syncSessions(token) {
           sensorType: s.sensorType,
           startTime: s.startTime,
           mvc: s.mvc,
+          module: mod?.backendId ?? null,
         });
         if (res?.success && res?.session?._id) {
           s.backendId = res.session._id;
