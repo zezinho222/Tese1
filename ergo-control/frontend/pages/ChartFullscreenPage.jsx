@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { Ionicons } from '@expo/vector-icons';
-import { LineChart } from 'react-native-gifted-charts';
+import LiveLineChart from '../components/LiveLineChart';
 import { colors } from '../utils/shared-Styles';
 import moduleService from '../moduleService';
 
@@ -19,8 +19,6 @@ const REFRESH_MS     = 1000;
 const Y_AXIS_LABEL_WIDTH = 42;
 const IMU_Y_AXIS_MAX = 100; // eixo Y do gráfico IMU fixo em [-100, 100]
 
-// Fora do componente — senão seria recriado (nova referência) em cada render
-// e o LineChart reage a mudanças de referência no dataSet mesmo com valores iguais.
 const IMU_AXIS_COLORS = [colors.primary, colors.secondary]; // Pitch, Roll
 
 export default function ChartFullscreenPage({ navigation, route }) {
@@ -52,21 +50,15 @@ export default function ChartFullscreenPage({ navigation, route }) {
   const chartWidth  = Math.max(width - 48 - Y_AXIS_LABEL_WIDTH, 160);
   const chartHeight = Math.max(height - 160, 120);
 
-  const emgChartData = useMemo(
-    () => emgPoints.map((v) => ({ value: v })),
+  const emgSeries = useMemo(
+    () => [{ data: emgPoints, color: colors.text.yellow }],
     [emgPoints]
   );
-  // Usamos `data`/`data2` (linhas individuais) em vez de `dataSet`: o efeito
-  // interno do react-native-gifted-charts que recalcula o traçado SVG só
-  // depende de `data`/`data2`/..., nunca de `dataSet` — por isso um gráfico
-  // multi-linha construído com `dataSet` fica com as linhas presas no
-  // primeiro desenho, apesar dos dados continuarem a mudar por baixo.
-  const imuPitchData = useMemo(
-    () => imuPoints.map((p) => ({ value: p?.[0] ?? 0 })),
-    [imuPoints]
-  );
-  const imuRollData = useMemo(
-    () => imuPoints.map((p) => ({ value: p?.[1] ?? 0 })),
+  const imuSeries = useMemo(
+    () => IMU_AXIS_COLORS.map((axisColor, i) => ({
+      data: imuPoints.map((p) => p?.[i] ?? 0),
+      color: axisColor,
+    })),
     [imuPoints]
   );
 
@@ -79,25 +71,16 @@ export default function ChartFullscreenPage({ navigation, route }) {
       );
     }
     return (
-      <LineChart
-        data={emgChartData}
-        height={chartHeight}
+      <LiveLineChart
+        series={emgSeries}
         width={chartWidth}
-        color={colors.text.yellow}
-        thickness={2}
-        curved
-        hideDataPoints
-        initialSpacing={4}
-        endSpacing={4}
-        disableScroll
-        adjustToWidth
+        height={chartHeight}
+        showAxis
         noOfSections={4}
-        yAxisTextStyle={styles.axisText}
+        axisTextStyle={styles.axisText}
         yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
-        yAxisColor={colors.border}
-        xAxisColor={colors.border}
+        axisColor={colors.border}
         rulesColor={colors.border}
-        rulesType="dashed"
       />
     );
   };
@@ -111,30 +94,19 @@ export default function ChartFullscreenPage({ navigation, route }) {
       );
     }
     return (
-      <LineChart
-        data={imuPitchData}
-        data2={imuRollData}
-        color={IMU_AXIS_COLORS[0]}
-        color2={IMU_AXIS_COLORS[1]}
-        height={chartHeight}
+      <LiveLineChart
+        series={imuSeries}
         width={chartWidth}
-        thickness={2}
-        curved
-        hideDataPoints
-        initialSpacing={4}
-        endSpacing={4}
-        disableScroll
-        adjustToWidth
+        height={chartHeight}
+        showAxis
         noOfSections={4}
-        noOfSectionsBelowXAxis={4}
+        noOfSectionsBelowZero={4}
+        minValue={-IMU_Y_AXIS_MAX}
         maxValue={IMU_Y_AXIS_MAX}
-        mostNegativeValue={-IMU_Y_AXIS_MAX}
-        yAxisTextStyle={styles.axisText}
+        axisTextStyle={styles.axisText}
         yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
-        yAxisColor={colors.border}
-        xAxisColor={colors.border}
+        axisColor={colors.border}
         rulesColor={colors.border}
-        rulesType="dashed"
       />
     );
   };

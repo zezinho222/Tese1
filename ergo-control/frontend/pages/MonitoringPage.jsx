@@ -14,7 +14,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { LineChart } from 'react-native-gifted-charts';
+import LiveLineChart from '../components/LiveLineChart';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import moduleService from '../moduleService';
@@ -29,9 +29,6 @@ const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2;
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
 
-// Fora do componente — senão seria recriado (nova referência) em cada render
-// e o LineChart (react-native-gifted-charts) reage a mudanças de referência
-// no dataSet mesmo que os valores sejam os mesmos, causando re-renders em cascata.
 const IMU_AXIS_COLORS = [colors.primary, colors.secondary]; // Pitch, Roll
 
 export default function MonitoringPage({ navigation }) {
@@ -55,16 +52,13 @@ export default function MonitoringPage({ navigation }) {
 
   const { isMonitoring, elapsedSec, alertCount, emgPoints, imuPoints } = monState;
 
-  // Memoizados por referência de emgPoints/imuPoints — não por elapsedSec/alertCount,
-  // que mudam a cada segundo e, sem isto, forçariam o LineChart a receber um
-  // dataSet "novo" em cada render mesmo sem dados novos (ver nota acima de IMU_AXIS_COLORS).
-  const emgChartData = useMemo(
-    () => emgPoints.map((v) => ({ value: v })),
+  const emgSeries = useMemo(
+    () => [{ data: emgPoints, color: colors.text.yellow }],
     [emgPoints]
   );
-  const imuChartData = useMemo(
+  const imuSeries = useMemo(
     () => IMU_AXIS_COLORS.map((axisColor, i) => ({
-      data: imuPoints.map((p) => ({ value: p?.[i] ?? 0 })),
+      data: imuPoints.map((p) => p?.[i] ?? 0),
       color: axisColor,
     })),
     [imuPoints]
@@ -139,19 +133,10 @@ export default function MonitoringPage({ navigation }) {
       );
     }
     return (
-      <LineChart
-        data={emgChartData}
-        height={72}
+      <LiveLineChart
+        series={emgSeries}
         width={CHART_WIDTH}
-        color={colors.text.yellow}
-        thickness={2}
-        curved
-        hideDataPoints
-        hideAxesAndRules
-        initialSpacing={0}
-        endSpacing={0}
-        disableScroll
-        adjustToWidth
+        height={72}
       />
     );
   };
@@ -166,18 +151,10 @@ export default function MonitoringPage({ navigation }) {
       );
     }
     return (
-      <LineChart
-        dataSet={imuChartData}
-        height={72}
+      <LiveLineChart
+        series={imuSeries}
         width={CHART_WIDTH}
-        thickness={2}
-        curved
-        hideDataPoints
-        hideAxesAndRules
-        initialSpacing={0}
-        endSpacing={0}
-        disableScroll
-        adjustToWidth
+        height={72}
       />
     );
   };
