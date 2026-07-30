@@ -61,6 +61,7 @@ const createSession = async (req, res) => {
 
     const session = await Session.create({
       user:       req.user._id,
+      userName:   req.user.name,
       module:     moduleId,
       moduleName,
       sensorType,
