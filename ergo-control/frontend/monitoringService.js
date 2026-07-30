@@ -19,7 +19,11 @@ import notificationService from './notificationService';
 import { normalizeByMVC } from './utils/emgProcessing';
 import { createAlertTracker } from './utils/alertTracker';
 
-const REFRESH_MS     = 300; // intervalo de atualização do gráfico
+// 300ms (>3x/seg) sobrecarregava o estado interno do LineChart
+// (react-native-gifted-charts) ao fim de algum tempo de monitorização
+// contínua, causando "Maximum update depth exceeded". 1x/seg já é suficiente
+// visualmente e resolve o problema (confirmado ao desligar o gráfico).
+const REFRESH_MS     = 1000; // intervalo de atualização do gráfico
 const DISPLAY_POINTS = 20;  // quantos pontos mostrar no gráfico
 
 const EMG_ALERT_MVC_PCT = 80;  // % do MVC calibrado acima do qual é esforço excessivo
@@ -102,9 +106,9 @@ async function start({ sensorType, mvc, token }) {
   }, 1000);
 
   graphInterval = setInterval(() => {
-    const { emgBuffer, imuBuffer } = moduleService.getBuffers();
-    state.emgPoints = emgBuffer.slice(-DISPLAY_POINTS);
-    state.imuPoints = imuBuffer.slice(-DISPLAY_POINTS);
+    const { emgBuffer, imuBuffer } = moduleService.getRecentBuffers(DISPLAY_POINTS);
+    state.emgPoints = emgBuffer;
+    state.imuPoints = imuBuffer;
 
     // Um alerta só conta quando o valor se mantém acima do limite durante
     // ALERT_DEBOUNCE_MS seguidos — um episódio contínuo = 1 alerta, não

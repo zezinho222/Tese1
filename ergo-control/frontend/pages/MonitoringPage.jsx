@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,11 @@ const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2;
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
 
+// Fora do componente — senão seria recriado (nova referência) em cada render
+// e o LineChart (react-native-gifted-charts) reage a mudanças de referência
+// no dataSet mesmo que os valores sejam os mesmos, causando re-renders em cascata.
+const IMU_AXIS_COLORS = [colors.primary, colors.secondary]; // Pitch, Roll
+
 export default function MonitoringPage({ navigation }) {
   const { token } = useAuth();
 
@@ -49,6 +54,21 @@ export default function MonitoringPage({ navigation }) {
   useEffect(() => monitoringService.subscribe(setMonState), []);
 
   const { isMonitoring, elapsedSec, alertCount, emgPoints, imuPoints } = monState;
+
+  // Memoizados por referência de emgPoints/imuPoints — não por elapsedSec/alertCount,
+  // que mudam a cada segundo e, sem isto, forçariam o LineChart a receber um
+  // dataSet "novo" em cada render mesmo sem dados novos (ver nota acima de IMU_AXIS_COLORS).
+  const emgChartData = useMemo(
+    () => emgPoints.map((v) => ({ value: v })),
+    [emgPoints]
+  );
+  const imuChartData = useMemo(
+    () => IMU_AXIS_COLORS.map((axisColor, i) => ({
+      data: imuPoints.map((p) => ({ value: p?.[i] ?? 0 })),
+      color: axisColor,
+    })),
+    [imuPoints]
+  );
 
   // ── Carregar módulo ────────────────────────────────────────────────────────
   const loadModule = async () => {
@@ -120,7 +140,7 @@ export default function MonitoringPage({ navigation }) {
     }
     return (
       <LineChart
-        data={emgPoints.map((v) => ({ value: v }))}
+        data={emgChartData}
         height={72}
         width={CHART_WIDTH}
         color={colors.text.yellow}
@@ -145,13 +165,9 @@ export default function MonitoringPage({ navigation }) {
         </View>
       );
     }
-    const axisColors = [colors.primary, colors.secondary]; // Pitch, Roll
     return (
       <LineChart
-        dataSet={axisColors.map((axisColor, i) => ({
-          data: imuPoints.map((p) => ({ value: p?.[i] ?? 0 })),
-          color: axisColor,
-        }))}
+        dataSet={imuChartData}
         height={72}
         width={CHART_WIDTH}
         thickness={2}
@@ -252,7 +268,7 @@ export default function MonitoringPage({ navigation }) {
               <View style={styles.imuValuesRow}>
                 {['Pitch', 'Roll'].map((ax, i) => (
                   <View key={ax} style={styles.imuValue}>
-                    <Text style={[styles.imuAxis, { color: [colors.primary, colors.secondary][i] }]}>
+                    <Text style={[styles.imuAxis, { color: IMU_AXIS_COLORS[i] }]}>
                       {ax}
                     </Text>
                     <Text style={styles.imuVal}>

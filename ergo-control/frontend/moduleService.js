@@ -499,6 +499,25 @@ const moduleService = {
     };
   },
 
+  /**
+   * Como getBuffers(), mas só devolve os últimos `n` pontos de cada buffer —
+   * usado pelo polling do gráfico (a cada 300ms), que só precisa dos últimos
+   * pontos a mostrar. getBuffers() copia o array INTEIRO (`[...emgBuffer]`),
+   * que durante uma monitorização cresce sem limite ao longo da sessão; a
+   * chamar isso a cada 300ms, o custo de copiar o array inteiro aumenta com
+   * a duração da sessão até o thread de JS começar a atrasar-se — os
+   * setInterval acumulam-se e disparam em rajada assim que o thread liberta,
+   * o que pode levar o React a exceder o limite de updates aninhados
+   * ("Maximum update depth exceeded") passados alguns segundos/minutos de
+   * monitorização. slice(-n) evita copiar o array todo.
+   */
+  getRecentBuffers(n) {
+    return {
+      emgBuffer: emgBuffer.slice(-n),
+      imuBuffer: imuBuffer.slice(-n),
+    };
+  },
+
   addListener(id, callback) {
     listeners.set(id, callback);
   },

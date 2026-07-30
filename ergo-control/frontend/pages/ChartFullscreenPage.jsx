@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,14 @@ import { colors } from '../utils/shared-Styles';
 import moduleService from '../moduleService';
 
 const DISPLAY_POINTS = 40; // mais pontos no ecrã cheio, para melhor detalhe
-const REFRESH_MS     = 300;
+// 300ms sobrecarregava o estado interno do LineChart (react-native-gifted-charts)
+// ao fim de algum tempo, causando "Maximum update depth exceeded" — ver monitoringService.js.
+const REFRESH_MS     = 1000;
 const Y_AXIS_LABEL_WIDTH = 42;
+
+// Fora do componente — senão seria recriado (nova referência) em cada render
+// e o LineChart reage a mudanças de referência no dataSet mesmo com valores iguais.
+const IMU_AXIS_COLORS = [colors.primary, colors.secondary]; // Pitch, Roll
 
 export default function ChartFullscreenPage({ navigation, route }) {
   const { type } = route.params; // 'EMG' | 'IMU'
@@ -37,15 +43,27 @@ export default function ChartFullscreenPage({ navigation, route }) {
   // ── Atualização periódica dos dados — lê diretamente do moduleService ─────
   useEffect(() => {
     intervalRef.current = setInterval(() => {
-      const { emgBuffer, imuBuffer } = moduleService.getBuffers();
-      setEmgPoints(emgBuffer.slice(-DISPLAY_POINTS));
-      setImuPoints(imuBuffer.slice(-DISPLAY_POINTS));
+      const { emgBuffer, imuBuffer } = moduleService.getRecentBuffers(DISPLAY_POINTS);
+      setEmgPoints(emgBuffer);
+      setImuPoints(imuBuffer);
     }, REFRESH_MS);
     return () => clearInterval(intervalRef.current);
   }, []);
 
   const chartWidth  = Math.max(width - 48 - Y_AXIS_LABEL_WIDTH, 160);
   const chartHeight = Math.max(height - 160, 120);
+
+  const emgChartData = useMemo(
+    () => emgPoints.map((v) => ({ value: v })),
+    [emgPoints]
+  );
+  const imuChartData = useMemo(
+    () => IMU_AXIS_COLORS.map((axisColor, i) => ({
+      data: imuPoints.map((p) => ({ value: p?.[i] ?? 0 })),
+      color: axisColor,
+    })),
+    [imuPoints]
+  );
 
   const renderEmgChart = () => {
     if (!emgPoints.length) {
@@ -57,7 +75,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
     }
     return (
       <LineChart
-        data={emgPoints.map((v) => ({ value: v }))}
+        data={emgChartData}
         height={chartHeight}
         width={chartWidth}
         color={colors.text.yellow}
@@ -87,13 +105,9 @@ export default function ChartFullscreenPage({ navigation, route }) {
         </View>
       );
     }
-    const axisColors = [colors.primary, colors.secondary]; // Pitch, Roll
     return (
       <LineChart
-        dataSet={axisColors.map((axisColor, i) => ({
-          data: imuPoints.map((p) => ({ value: p?.[i] ?? 0 })),
-          color: axisColor,
-        }))}
+        dataSet={imuChartData}
         height={chartHeight}
         width={chartWidth}
         thickness={2}
@@ -136,7 +150,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
         <View style={styles.legendRow}>
           {['Pitch', 'Roll'].map((label, i) => (
             <View key={label} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: [colors.primary, colors.secondary][i] }]} />
+              <View style={[styles.legendDot, { backgroundColor: IMU_AXIS_COLORS[i] }]} />
               <Text style={styles.legendLabel}>{label}</Text>
               <Text style={styles.legendValue}>
                 {(imuPoints[imuPoints.length - 1]?.[i] ?? 0).toFixed(2)}
