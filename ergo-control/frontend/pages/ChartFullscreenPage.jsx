@@ -14,11 +14,10 @@ import { LineChart } from 'react-native-gifted-charts';
 import { colors } from '../utils/shared-Styles';
 import moduleService from '../moduleService';
 
-const DISPLAY_POINTS = 40; // mais pontos no ecrã cheio, para melhor detalhe
-// 300ms sobrecarregava o estado interno do LineChart (react-native-gifted-charts)
-// ao fim de algum tempo, causando "Maximum update depth exceeded" — ver monitoringService.js.
+const DISPLAY_POINTS = 40;
 const REFRESH_MS     = 1000;
 const Y_AXIS_LABEL_WIDTH = 42;
+const IMU_Y_AXIS_MAX = 100; // eixo Y do gráfico IMU fixo em [-100, 100]
 
 // Fora do componente — senão seria recriado (nova referência) em cada render
 // e o LineChart reage a mudanças de referência no dataSet mesmo com valores iguais.
@@ -57,11 +56,17 @@ export default function ChartFullscreenPage({ navigation, route }) {
     () => emgPoints.map((v) => ({ value: v })),
     [emgPoints]
   );
-  const imuChartData = useMemo(
-    () => IMU_AXIS_COLORS.map((axisColor, i) => ({
-      data: imuPoints.map((p) => ({ value: p?.[i] ?? 0 })),
-      color: axisColor,
-    })),
+  // Usamos `data`/`data2` (linhas individuais) em vez de `dataSet`: o efeito
+  // interno do react-native-gifted-charts que recalcula o traçado SVG só
+  // depende de `data`/`data2`/..., nunca de `dataSet` — por isso um gráfico
+  // multi-linha construído com `dataSet` fica com as linhas presas no
+  // primeiro desenho, apesar dos dados continuarem a mudar por baixo.
+  const imuPitchData = useMemo(
+    () => imuPoints.map((p) => ({ value: p?.[0] ?? 0 })),
+    [imuPoints]
+  );
+  const imuRollData = useMemo(
+    () => imuPoints.map((p) => ({ value: p?.[1] ?? 0 })),
     [imuPoints]
   );
 
@@ -107,7 +112,10 @@ export default function ChartFullscreenPage({ navigation, route }) {
     }
     return (
       <LineChart
-        dataSet={imuChartData}
+        data={imuPitchData}
+        data2={imuRollData}
+        color={IMU_AXIS_COLORS[0]}
+        color2={IMU_AXIS_COLORS[1]}
         height={chartHeight}
         width={chartWidth}
         thickness={2}
@@ -118,6 +126,9 @@ export default function ChartFullscreenPage({ navigation, route }) {
         disableScroll
         adjustToWidth
         noOfSections={4}
+        noOfSectionsBelowXAxis={4}
+        maxValue={IMU_Y_AXIS_MAX}
+        mostNegativeValue={-IMU_Y_AXIS_MAX}
         yAxisTextStyle={styles.axisText}
         yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
         yAxisColor={colors.border}
