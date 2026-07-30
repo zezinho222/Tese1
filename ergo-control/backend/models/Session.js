@@ -7,9 +7,6 @@ const sessionSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    // Nome do utilizador guardado diretamente na sessão (além da referência
-    // acima) — para aparecer já pronto ao consultar a base de dados
-    // diretamente, sem precisar de fazer populate ao User.
     userName: {
       type: String,
       default: null,
