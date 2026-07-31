@@ -16,13 +16,11 @@
 import syncService from './syncService';
 import moduleService from './moduleService';
 import notificationService from './notificationService';
-import { normalizeByMVC } from './utils/emgProcessing';
 import { createAlertTracker } from './utils/alertTracker';
 
 const REFRESH_MS     = 1000; // intervalo de atualização do gráfico
 const DISPLAY_POINTS = 20;  // quantos pontos mostrar no gráfico
 
-const EMG_ALERT_MVC_PCT = 80;  // % do MVC calibrado acima do qual é esforço excessivo
 const IMU_ALERT_DEG     = 45;  // graus de pitch/roll acima dos quais é má postura
 const ALERT_DEBOUNCE_MS = 700; // tempo mínimo acima do limite para contar como 1 alerta
 
@@ -38,12 +36,11 @@ let state = { ...IDLE_STATE };
 let listeners = new Set(); // callbacks(state) — ecrãs atualmente montados a ouvir
 
 let sessionId   = null;
-let mvcValue    = null;
+let mvcValue    = null; // só guardado com a sessão para referência histórica — já não é usado para calcular %MVC durante a monitorização
 let tokenGetter = () => null;
 
 let elapsedInterval = null;
 let graphInterval   = null;
-let emgAlertTracker = null;
 let imuAlertTracker = null;
 
 function notify() {
@@ -74,7 +71,6 @@ async function start({ sensorType, mvc, token }) {
   tokenGetter = () => token;
 
   state = { ...IDLE_STATE, isMonitoring: true };
-  emgAlertTracker = createAlertTracker(ALERT_DEBOUNCE_MS);
   imuAlertTracker = createAlertTracker(ALERT_DEBOUNCE_MS);
 
   // Regista a sessão sempre localmente primeiro — funciona mesmo sem internet
@@ -111,15 +107,6 @@ async function start({ sensorType, mvc, token }) {
     // um por cada amostra (ver utils/alertTracker.js).
     const nowMs = Date.now();
 
-    if (emgBuffer.length > 0 && mvcValue) {
-      const lastEmg = emgBuffer[emgBuffer.length - 1];
-      const pct = normalizeByMVC(lastEmg, mvcValue);
-      if (emgAlertTracker?.update(pct >= EMG_ALERT_MVC_PCT, nowMs)) {
-        state.alertCount += 1;
-        notificationService.notifyAlert('emg');
-      }
-    }
-
     if (imuBuffer.length > 0) {
       const [pitch, roll] = imuBuffer[imuBuffer.length - 1];
       const badPosture = Math.abs(pitch) > IMU_ALERT_DEG || Math.abs(roll) > IMU_ALERT_DEG;
@@ -149,15 +136,16 @@ async function stop() {
   const alertCount = state.alertCount;
 
   // Atualiza a sessão local com os dados finais — sempre grava, mesmo offline.
-  // Os buffers são reduzidos (downsample) antes de guardar, para não gravar
-  // sessões inteiras ao segundo (podem ter milhares de amostras).
+  // emgData grava-se em bruto (todas as amostras recolhidas, sem downsample)
+  // para o export CSV refletir exatamente o que foi recolhido (freq × duração
+  // amostras); o buffer IMU continua reduzido, pois só serve para o gráfico.
   if (sessionId) {
     await syncService.queueSessionEnd(sessionId, {
       endTime:    endTime.toISOString(),
       duration,
       mvc:        mvcValue,
       alertCount,
-      emgData:    syncService.downsampleArray(emgBuffer),
+      emgData:    emgBuffer,
       imuData:    syncService.downsampleArray(imuBuffer),
     });
     syncService.trySyncAll(tokenGetter());

@@ -22,6 +22,17 @@ function csvEscape(value) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/** Reduz um array para no máximo maxPoints, só para desenhar o gráfico do PDF — o CSV usa sempre os dados em bruto. */
+function downsampleForChart(arr, maxPoints = 200) {
+  if (!Array.isArray(arr) || arr.length <= maxPoints) return arr || [];
+  const step = arr.length / maxPoints;
+  const result = [];
+  for (let i = 0; i < maxPoints; i++) {
+    result.push(arr[Math.floor(i * step)]);
+  }
+  return result;
+}
+
 /** CSV com o resumo da sessão + os valores brutos dos gráficos (sem imagens). */
 export function buildSessionCsv({
   sessionNumber, sensorLabel, dateStr, timeStr, durationSec, alertCount, mvc, emgData, imuData,
@@ -124,7 +135,7 @@ export function buildSessionPdfHtml({
   showEMG, showIMU, emgData, imuData,
 }) {
   const emgChart = showEMG
-    ? svgLineChart([{ data: emgData || [], color: CHART_COLORS.emg }], { totalSeconds: durationSec })
+    ? svgLineChart([{ data: downsampleForChart(emgData), color: CHART_COLORS.emg }], { totalSeconds: durationSec })
     : '';
   const imuChart = showIMU
     ? svgLineChart([

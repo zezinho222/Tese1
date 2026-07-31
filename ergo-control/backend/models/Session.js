@@ -60,7 +60,9 @@ const sessionSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    // Dados do gráfico (amostra reduzida — máx. 200 pontos, para visualização no histórico)
+    // Amostras EMG em bruto, tal como recolhidas (freq × duração amostras) —
+    // usadas no export CSV; o gráfico no histórico reduz (downsample) no
+    // cliente só para desenhar a linha.
     emgData: {
       type: [Number],
       default: [],

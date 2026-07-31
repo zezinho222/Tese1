@@ -211,9 +211,6 @@ export default function MonitoringPage({ navigation }) {
                 <Ionicons name="expand-outline" size={18} color={colors.text.secondary} />
               </TouchableOpacity>
             </View>
-            {localModule?.mvc != null && (
-              <Text style={styles.mvcLabel}>MVC: {localModule.mvc.toFixed(2)}</Text>
-            )}
             <View style={styles.graphArea}>
               {renderEmgLine()}
             </View>
@@ -518,12 +515,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.text.primary,
-  },
-  mvcLabel: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '600',
-    marginBottom: 10,
   },
   expandBtn: {
     padding: 4,

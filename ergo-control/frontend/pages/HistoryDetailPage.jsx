@@ -119,8 +119,13 @@ export default function HistoryDetailPage({ navigation, route }) {
   const showEMG = session.sensorType === 'EMG' || session.sensorType === 'DUAL';
   const showIMU = session.sensorType === 'IMU' || session.sensorType === 'DUAL';
 
+  // emgData vem em bruto da sessão (todas as amostras recolhidas, sem
+  // downsample) — usado tal-e-qual no export CSV. Para o gráfico em ecrã,
+  // que não precisa (nem aguenta bem) milhares de pontos, usa-se uma versão
+  // reduzida só para desenhar a linha.
   const emgData = Array.isArray(session.emgData) ? session.emgData : [];
   const imuData = Array.isArray(session.imuData) ? session.imuData : [];
+  const emgChartData = syncService.downsampleArray(emgData);
 
   // ── Exportar CSV (resumo + valores dos gráficos, sem imagens) ───────────────
   const handleExportCsv = async () => {
@@ -193,7 +198,7 @@ export default function HistoryDetailPage({ navigation, route }) {
   // ── Gráfico de linha — sEMG (mesmo estilo do gráfico da Monitorização) ──────
   // Eixo X = tempo (ao longo da duração real da sessão), eixo Y = valores.
   const renderEmgLine = () => {
-    if (!emgData.length) {
+    if (!emgChartData.length) {
       return (
         <View style={styles.graphEmptyReal}>
           <Text style={styles.noDataText}>Sem dados de gráfico guardados para esta sessão</Text>
@@ -203,7 +208,7 @@ export default function HistoryDetailPage({ navigation, route }) {
     return (
       <>
         <LineChart
-          data={emgData.map((v) => ({ value: v }))}
+          data={emgChartData.map((v) => ({ value: v }))}
           height={90}
           width={CHART_WIDTH}
           color={colors.text.yellow}
@@ -223,7 +228,7 @@ export default function HistoryDetailPage({ navigation, route }) {
           rulesType="dashed"
         />
         <ChartTimeAxis
-          labels={buildTimeAxisLabels(emgData.length, session.duration)}
+          labels={buildTimeAxisLabels(emgChartData.length, session.duration)}
           chartWidth={CHART_WIDTH}
           yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
           initialSpacing={4}
