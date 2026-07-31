@@ -60,6 +60,10 @@ const DUAL_TRAILER_BYTES = 2 + 2; // 4
 const MAX_NSAMP    = 1024; // firmware usa sempre 256
 const MAX_IMU_SAMP = 64;   // firmware usa no máximo 26
 
+// Maior frame possível dentro dos limites de sanidade acima. Um buffer maior
+// do que isto sem nenhum SYNC lá dentro é mesmo lixo e pode ser aparado.
+const MAX_FRAME_BYTES = DUAL_HEADER_BYTES + MAX_IMU_SAMP * 8 + MAX_NSAMP * 2 + DUAL_TRAILER_BYTES;
+
 // ─── Estado interno ───────────────────────────────────────────────────────────
 let socket        = null;
 let listeners     = new Map();   // id → callback(rawData, parsedData)
@@ -135,94 +139,94 @@ function tryParseBinaryFrames(onData) {
   while (true) {
     const syncIdx = recvBuffer.indexOf(SYNC_PATTERN);
     if (syncIdx === -1) {
-      // sem SYNC ainda — mantém só os últimos bytes (podem ser início de um SYNC cortado)
-      if (recvBuffer.length > SYNC_BYTES) {
+      // Sem SYNC à vista. NÃO se pode esvaziar o buffer aqui: se o frame
+      // anterior tiver consumido bytes a mais e comido o SYNC seguinte,
+      // isto deitava fora um pacote inteiro em silêncio — era exatamente
+      // a causa de se perder metade das amostras de cada sessão.
+      // Só apara quando o buffer já é grande demais para conter um frame.
+      if (recvBuffer.length > MAX_FRAME_BYTES) {
         recvBuffer = recvBuffer.slice(recvBuffer.length - (SYNC_BYTES - 1));
       }
       return;
     }
 
-    // Descarta lixo antes do SYNC encontrado.
-    // No modo DUAL isto inclui sempre o byte de sensor_id que o STM32 escreve
-    // antes do sync (ver build_dual_packet no firmware) — é esperado e normal.
+    // Descarta lixo antes do SYNC. No modo DUAL isto inclui o byte de
+    // sensor_id que o STM32 escreve antes do sync (ver build_dual_packet),
+    // mais os poucos bytes que o ESP32 injeta entre frames.
     if (syncIdx > 0) recvBuffer = recvBuffer.slice(syncIdx);
 
-    if (currentMode === 'DUAL') {
-      // Precisamos de pelo menos SYNC(4)+seq(2)+nsamp(2)+imu_samp(2) para calcular o frame
-      if (recvBuffer.length < SYNC_BYTES + 2 + 2 + 2) return;
+    const isDual     = currentMode === 'DUAL';
+    const headerLen  = isDual ? DUAL_HEADER_BYTES : EMG_HEADER_BYTES;
+    const trailerLen = isDual ? DUAL_TRAILER_BYTES : EMG_TRAILER_BYTES;
+    if (recvBuffer.length < headerLen) return;
 
-      const nsamp   = recvBuffer.readUInt16LE(SYNC_BYTES + 2);     // offset 6
-      const imusamp = recvBuffer.readUInt16LE(SYNC_BYTES + 2 + 2); // offset 8
+    // nsamp/imu_samp vêm dentro do próprio frame — nunca são assumidos.
+    const nsamp   = isDual ? recvBuffer.readUInt16LE(SYNC_BYTES + 2)      // offset 6
+                           : recvBuffer.readUInt16LE(SYNC_BYTES + 1 + 2); // offset 7
+    const imusamp = isDual ? recvBuffer.readUInt16LE(SYNC_BYTES + 2 + 2)  // offset 8
+                           : 0;
 
-      // Valores absurdos → este SYNC não é um frame DUAL válido (ex: bytes
-      // residuais de uma transição de modo). Descarta-o e procura o próximo.
-      if (nsamp > MAX_NSAMP || imusamp > MAX_IMU_SAMP) {
-        recvBuffer = recvBuffer.slice(SYNC_BYTES);
-        continue;
-      }
-
-      const frameLen = DUAL_HEADER_BYTES
-                      + imusamp * 4   // Pitch
-                      + imusamp * 4   // Roll
-                      + nsamp * 2     // amostras EMG
-                      + DUAL_TRAILER_BYTES; // battery + crc
-
-      if (recvBuffer.length < frameLen) return; // frame ainda incompleto — espera mais dados
-      const frame = recvBuffer.slice(0, frameLen);
-      recvBuffer = recvBuffer.slice(frameLen);
-
-      let dataOff = DUAL_HEADER_BYTES;
-      const pitchArr = [];
-      for (let i = 0; i < imusamp; i++) { pitchArr.push(frame.readFloatLE(dataOff)); dataOff += 4; }
-      const rollArr = [];
-      for (let i = 0; i < imusamp; i++) { rollArr.push(frame.readFloatLE(dataOff)); dataOff += 4; }
-      const emgArr = [];
-      for (let i = 0; i < nsamp; i++) { emgArr.push(frame.readUInt16LE(dataOff)); dataOff += 2; }
-      // trailer (battery + crc, 4 bytes) segue-se, não é preciso para os gráficos
-
-      const imuSamples = pitchArr.map((p, i) => [p, rollArr[i]]); // [pitch, roll]
-
-      if (calibMode) calibBuffer.push(...emgArr);
-      if (monitoring) {
-        emgBuffer.push(...emgArr);
-        imuBuffer.push(...imuSamples);
-      }
-
-      const parsed = { type: 'FRAME', emg: emgArr, imu: imuSamples };
-      listeners.forEach((cb) => cb(frame, parsed));
-      onData && onData(frame, parsed);
-
-    } else {
-      // Modo EMG: sync no offset 0, seguido do sensor_id (1 byte) antes de seq/nsamp
-      // Precisamos de pelo menos SYNC(4)+sensor_id(1)+seq(2)+nsamp(2) para ler o nsamp
-      if (recvBuffer.length < SYNC_BYTES + 1 + 2 + 2) return;
-
-      const nsamp = recvBuffer.readUInt16LE(SYNC_BYTES + 1 + 2); // offset 7
-
-      // Valor absurdo → SYNC não é um frame EMG válido — descarta e procura o próximo
-      if (nsamp > MAX_NSAMP) {
-        recvBuffer = recvBuffer.slice(SYNC_BYTES);
-        continue;
-      }
-
-      const frameLen = EMG_HEADER_BYTES + nsamp * 2 + EMG_TRAILER_BYTES;
-      if (recvBuffer.length < frameLen) return;
-
-      const frame = recvBuffer.slice(0, frameLen);
-      recvBuffer = recvBuffer.slice(frameLen);
-
-      let dataOff = EMG_HEADER_BYTES;
-      const emgArr = [];
-      for (let i = 0; i < nsamp; i++) { emgArr.push(frame.readUInt16LE(dataOff)); dataOff += 2; }
-      // trailer (battery + crc, 4 bytes) segue-se, não é preciso para os gráficos
-
-      if (calibMode) calibBuffer.push(...emgArr);
-      if (monitoring) emgBuffer.push(...emgArr);
-
-      const parsed = { type: 'FRAME', emg: emgArr, imu: [] };
-      listeners.forEach((cb) => cb(frame, parsed));
-      onData && onData(frame, parsed);
+    // Valores absurdos → este SYNC não é o início real de um frame neste
+    // modo (ex: bytes residuais de uma transição de modo). Descarta-o e
+    // procura o próximo, em vez de esperar por um frame que nunca completa.
+    if (nsamp === 0 || nsamp > MAX_NSAMP || imusamp > MAX_IMU_SAMP) {
+      recvBuffer = recvBuffer.slice(SYNC_BYTES);
+      continue;
     }
+
+    // dataEnd = fim das amostras (o que precisamos mesmo).
+    // frameLen inclui ainda battery+crc, que o ESP32 por vezes corta.
+    const dataEnd  = headerLen + imusamp * 8 + nsamp * 2;
+    const frameLen = dataEnd + trailerLen;
+
+    if (recvBuffer.length < dataEnd) return; // amostras ainda incompletas
+
+    // Fronteira REAL do frame: o próximo SYNC. O frame_size do NINA não
+    // coincide com o tamanho do pacote do STM32 (falta-lhe o sensor_id e
+    // parte do trailer), por isso o bloco entregue é 2–3 bytes mais curto
+    // do que frameLen. Consumir frameLen às cegas comia o SYNC seguinte.
+    // Um SYNC que apareça antes do fim das amostras é falso (o padrão
+    // 0xDEADBEEF pode calhar nos dados do ADC) — procura-se o seguinte.
+    let nextSync = recvBuffer.indexOf(SYNC_PATTERN, SYNC_BYTES);
+    while (nextSync !== -1 && nextSync < dataEnd) {
+      nextSync = recvBuffer.indexOf(SYNC_PATTERN, nextSync + 1);
+    }
+
+    let consume;
+    if (nextSync === -1) {
+      // Frame seguinte ainda não chegou: espera até haver folga suficiente
+      // para ter a certeza de que ele não vinha logo a seguir.
+      if (recvBuffer.length < frameLen + SYNC_BYTES + 4) return;
+      consume = Math.min(frameLen, recvBuffer.length);
+    } else {
+      consume = Math.min(frameLen, nextSync);
+    }
+
+    const frame = recvBuffer.slice(0, consume);
+    recvBuffer  = recvBuffer.slice(consume);
+
+    let dataOff = headerLen;
+    const pitchArr = [];
+    const rollArr  = [];
+    if (isDual) {
+      for (let i = 0; i < imusamp; i++) { pitchArr.push(frame.readFloatLE(dataOff)); dataOff += 4; }
+      for (let i = 0; i < imusamp; i++) { rollArr.push(frame.readFloatLE(dataOff));  dataOff += 4; }
+    }
+    const emgArr = [];
+    for (let i = 0; i < nsamp; i++) { emgArr.push(frame.readUInt16LE(dataOff)); dataOff += 2; }
+    // trailer (battery + crc) pode vir cortado pelo ESP32 — não é preciso aqui
+
+    const imuSamples = pitchArr.map((p, i) => [p, rollArr[i]]); // [pitch, roll]
+
+    if (calibMode) calibBuffer.push(...emgArr);
+    if (monitoring) {
+      emgBuffer.push(...emgArr);
+      if (isDual) imuBuffer.push(...imuSamples);
+    }
+
+    const parsed = { type: 'FRAME', emg: emgArr, imu: imuSamples };
+    listeners.forEach((cb) => cb(frame, parsed));
+    onData && onData(frame, parsed);
   }
 }
 
@@ -457,9 +461,12 @@ const moduleService = {
     return true;
   },
 
-  /** Calcula e envia o prescaler de frequência ao módulo (fórmula espelha o firmware). */
+  /**
+   * Calcula e envia o prescaler de frequência ao módulo.
+   * Firmware: f = 280MHz / ((prescaler + 1) * 27)  →  prescaler = 280e6/(27*hz) - 1
+   */
   setFrequency(hz) {
-    const freqValue = Math.round((280e6) / (27 * hz));
+    const freqValue = Math.max(0, Math.round((280e6) / (27 * hz)) - 1);
     this.sendCommand('FREQ');
     this.sendCommand(String(freqValue));
     return freqValue;
