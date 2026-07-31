@@ -40,6 +40,7 @@ export default function MonitoringPage({ navigation }) {
   const [showNoCal,       setShowNoCal]       = useState(false);
   const [stopping,        setStopping]        = useState(false); // "a guardar sessão..." — só relevante para a paragem manual, enquanto o ecrã está montado
   const [error,           setError]           = useState('');
+  const [connectingMsg,   setConnectingMsg]   = useState('');
 
   // A monitorização em si (timers, deteção de alertas, sessão em curso) vive
   // em monitoringService — um singleton — e não neste componente. Assim,
@@ -96,11 +97,13 @@ export default function MonitoringPage({ navigation }) {
     }
 
     if (!moduleService.isConnected()) {
-      setError('A ligar ao módulo...');
+      setError('');
+      setConnectingMsg('A ligar ao módulo...');
       const reconnected = await moduleService.ensureConnected({
         offsetValue: localModule.offsetValue,
         freqValue: localModule.freqValue,
       });
+      setConnectingMsg('');
       if (!reconnected) {
         setError('Módulo não está ligado. Confirma que estás na rede Wi-Fi do módulo e tenta novamente.');
         return;
@@ -189,6 +192,12 @@ export default function MonitoringPage({ navigation }) {
           </Text>
         </View>
       </View>
+
+      {connectingMsg !== '' && (
+        <View style={[sharedStyles.helperBox, styles.connectingBox]}>
+          <Text style={[sharedStyles.helperText, styles.connectingText]}>{connectingMsg}</Text>
+        </View>
+      )}
 
       {error !== '' && (
         <View style={[sharedStyles.helperBox, styles.errorBox]}>
@@ -477,6 +486,19 @@ const styles = StyleSheet.create({
   },
   statusBadgeTextActive: {
     color: colors.secondary,
+  },
+
+  /* ── Connecting (não é erro) ── */
+  connectingBox: {
+    backgroundColor: colors.success,
+    borderColor: colors.secondary + '30',
+    marginHorizontal: 20,
+    marginBottom: 4,
+  },
+  connectingText: {
+    color: colors.secondary,
+    fontStyle: 'normal',
+    textAlign: 'center',
   },
 
   /* ── Error ── */
