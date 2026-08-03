@@ -15,7 +15,7 @@ const app = express();
 connectDB();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 
 // Servir assets do frontend
 app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));

@@ -122,6 +122,8 @@ async function queueNewSession({ sensorType, startTime, mvc }) {
       alertCount: 0,
       emgData: [],
       imuData: [],
+      envelope: [],
+      envelopeParams: null,
     };
     sessions.unshift(entry);
     await writeSessions(sessions);
@@ -140,7 +142,7 @@ async function queueNewSession({ sensorType, startTime, mvc }) {
  * monitorização) — incluindo os dados dos gráficos (já reduzidos com
  * downsampleArray antes de chegarem aqui).
  */
-async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount, emgData, imuData }) {
+async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams }) {
   const sessions = await readSessions();
   const idx = sessions.findIndex((s) => s.localId === localId);
   if (idx === -1) return;
@@ -152,6 +154,8 @@ async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount, em
     alertCount,
     emgData: emgData ?? sessions[idx].emgData ?? [],
     imuData: imuData ?? sessions[idx].imuData ?? [],
+    envelope: envelope ?? sessions[idx].envelope ?? [],
+    envelopeParams: envelopeParams ?? sessions[idx].envelopeParams ?? null,
     synced: false, // força reenvio do estado final ao backend
   };
   await writeSessions(sessions);
@@ -200,6 +204,8 @@ async function pullRemoteSessions(token) {
         mvc: remote.mvc ?? null,
         alertCount: remote.alertCount ?? 0,
         emgData: remote.emgData ?? [],
+        envelope: remote.envelope ?? [],
+        envelopeParams: remote.envelopeParams ?? null,
         imuData: remote.imuData ?? [],
       }));
 
@@ -311,6 +317,8 @@ async function syncSessions(token) {
           mvc: s.mvc,
           alertCount: s.alertCount,
           emgData: s.emgData || [],
+          envelope: s.envelope || [],
+          envelopeParams: s.envelopeParams || null,
           imuData: s.imuData || [],
         });
         if (res2?.success) {

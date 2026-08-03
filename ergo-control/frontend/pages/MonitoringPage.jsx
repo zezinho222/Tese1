@@ -10,6 +10,7 @@ import {
   Modal,
   ActivityIndicator,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -19,6 +20,7 @@ import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import moduleService from '../moduleService';
 import monitoringService from '../monitoringService';
+import { DEFAULT_WINDOW_MS, DEFAULT_OVERLAP_MS } from '../utils/emgProcessing';
 
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
@@ -36,11 +38,15 @@ export default function MonitoringPage({ navigation }) {
 
   const [localModule,     setLocalModule]     = useState(null);
   const [showStopModal,   setShowStopModal]   = useState(false);
+  const [showEnvModal,    setShowEnvModal]    = useState(false);   // janela/overlap do envelope
+  const [windowMsInput,   setWindowMsInput]   = useState(String(DEFAULT_WINDOW_MS));
+  const [overlapMsInput,  setOverlapMsInput]  = useState(String(DEFAULT_OVERLAP_MS));
+  const [envError,        setEnvError]        = useState('');
+  const [envResult,       setEnvResult]       = useState(null);    // resumo mostrado no fim
   const [showNoModModal,  setShowNoModModal]  = useState(false);
   const [showNoCal,       setShowNoCal]       = useState(false);
   const [stopping,        setStopping]        = useState(false); // "a guardar sessão..." — só relevante para a paragem manual, enquanto o ecrã está montado
   const [error,           setError]           = useState('');
-  const [connectingMsg,   setConnectingMsg]   = useState('');
 
   // A monitorização em si (timers, deteção de alertas, sessão em curso) vive
   // em monitoringService — um singleton — e não neste componente. Assim,
@@ -97,13 +103,11 @@ export default function MonitoringPage({ navigation }) {
     }
 
     if (!moduleService.isConnected()) {
-      setError('');
-      setConnectingMsg('A ligar ao módulo...');
+      setError('A ligar ao módulo...');
       const reconnected = await moduleService.ensureConnected({
         offsetValue: localModule.offsetValue,
         freqValue: localModule.freqValue,
       });
-      setConnectingMsg('');
       if (!reconnected) {
         setError('Módulo não está ligado. Confirma que estás na rede Wi-Fi do módulo e tenta novamente.');
         return;
@@ -111,19 +115,53 @@ export default function MonitoringPage({ navigation }) {
     }
 
     setError('');
+    setEnvResult(null);
     await monitoringService.start({
       sensorType,
       mvc: localModule.mvc ?? null,
+      fs:  localModule.freqHz ?? null, // Hz — usado no cálculo do envelope no fim
       token,
     });
   };
 
   // ── Confirmar paragem (manual) ───────────────────────────────────────────────
-  const handleConfirmStop = async () => {
+  // Depois de confirmar, pergunta-se a janela e o overlap do envelope RMS
+  // antes de parar de facto — o cálculo corre uma única vez, sobre o sinal
+  // completo da sessão, dentro de monitoringService.stop().
+  const handleConfirmStop = () => {
     setShowStopModal(false);
+    setEnvError('');
+    setWindowMsInput(String(DEFAULT_WINDOW_MS));
+    setOverlapMsInput(String(DEFAULT_OVERLAP_MS));
+    setShowEnvModal(true);
+  };
+
+  // ── Calcular envelope e parar ────────────────────────────────────────────────
+  const handleConfirmEnvelope = async () => {
+    // aceita vírgula decimal (teclado português)
+    const windowMs  = parseFloat(String(windowMsInput).replace(',', '.'));
+    const overlapMs = parseFloat(String(overlapMsInput).replace(',', '.'));
+
+    if (!isFinite(windowMs) || windowMs <= 0) {
+      setEnvError('A largura da janela tem de ser um número maior que 0.');
+      return;
+    }
+    if (!isFinite(overlapMs) || overlapMs < 0) {
+      setEnvError('O overlap tem de ser um número maior ou igual a 0.');
+      return;
+    }
+    if (overlapMs >= windowMs) {
+      // salto = (janela - overlap) * fs; com overlap >= janela o salto seria
+      // 0 ou negativo e o ciclo do envelope nunca avançava.
+      setEnvError('O overlap tem de ser menor que a largura da janela.');
+      return;
+    }
+
+    setShowEnvModal(false);
     setStopping(true);
-    await monitoringService.stop();
+    const env = await monitoringService.stop({ windowMs, overlapMs });
     setStopping(false);
+    if (env) setEnvResult(env);
   };
 
   // ── Gráfico de linha — sEMG (mesmo estilo do gráfico IMU) ───────────────────
@@ -192,12 +230,6 @@ export default function MonitoringPage({ navigation }) {
           </Text>
         </View>
       </View>
-
-      {connectingMsg !== '' && (
-        <View style={[sharedStyles.helperBox, styles.connectingBox]}>
-          <Text style={[sharedStyles.helperText, styles.connectingText]}>{connectingMsg}</Text>
-        </View>
-      )}
 
       {error !== '' && (
         <View style={[sharedStyles.helperBox, styles.errorBox]}>
@@ -345,6 +377,119 @@ export default function MonitoringPage({ navigation }) {
       </Modal>
 
       {/* ═══════════════════════════════════════
+          Modal: Envelope RMS (janela + overlap)
+      ═══════════════════════════════════════ */}
+      <Modal visible={showEnvModal} transparent animationType="fade" onRequestClose={() => setShowEnvModal(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowEnvModal(false)}>
+          <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
+            <Text style={styles.modalTitle}>Envelope RMS</Text>
+            <Text style={styles.modalSubtitle}>
+              Define a janela deslizante a usar no cálculo do envelope.
+            </Text>
+
+            <View style={styles.envField}>
+              <Text style={styles.envLabel}>Largura da janela</Text>
+              <View style={styles.envInputRow}>
+                <TextInput
+                  style={styles.envInput}
+                  value={windowMsInput}
+                  onChangeText={(t) => { setWindowMsInput(t); setEnvError(''); }}
+                  keyboardType="decimal-pad"
+                  placeholder={String(DEFAULT_WINDOW_MS)}
+                  placeholderTextColor={colors.text.secondary}
+                  selectTextOnFocus
+                />
+                <Text style={styles.envUnit}>ms</Text>
+              </View>
+            </View>
+
+            <View style={styles.envField}>
+              <Text style={styles.envLabel}>Overlap</Text>
+              <View style={styles.envInputRow}>
+                <TextInput
+                  style={styles.envInput}
+                  value={overlapMsInput}
+                  onChangeText={(t) => { setOverlapMsInput(t); setEnvError(''); }}
+                  keyboardType="decimal-pad"
+                  placeholder={String(DEFAULT_OVERLAP_MS)}
+                  placeholderTextColor={colors.text.secondary}
+                  selectTextOnFocus
+                />
+                <Text style={styles.envUnit}>ms</Text>
+              </View>
+            </View>
+
+            {envError ? <Text style={styles.envError}>{envError}</Text> : null}
+
+            <TouchableOpacity
+              style={[sharedStyles.primaryButton, sharedStyles.confirmButton]}
+              onPress={handleConfirmEnvelope}
+              activeOpacity={0.85}
+            >
+              <Text style={sharedStyles.confirmButtonText}>Calcular e guardar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[sharedStyles.primaryButton, sharedStyles.cancelButton]}
+              onPress={() => setShowEnvModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={sharedStyles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ═══════════════════════════════════════
+          Modal: Resultado do envelope
+      ═══════════════════════════════════════ */}
+      <Modal visible={!!envResult} transparent animationType="fade" onRequestClose={() => setEnvResult(null)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setEnvResult(null)}>
+          <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
+            <Text style={styles.modalEmoji}>📈</Text>
+            <Text style={styles.modalTitle}>Envelope calculado</Text>
+            <Text style={styles.modalSubtitle}>
+              Sessão guardada no histórico com o envelope incluído.
+            </Text>
+
+            <View style={styles.envSummary}>
+              <View style={styles.envRow}>
+                <Text style={styles.envRowLabel}>Janelas</Text>
+                <Text style={styles.envRowValue}>{envResult?.envelope?.length ?? 0}</Text>
+              </View>
+              <View style={styles.envRow}>
+                <Text style={styles.envRowLabel}>Amostras / janela</Text>
+                <Text style={styles.envRowValue}>{envResult?.windowSamples ?? 0}</Text>
+              </View>
+              <View style={styles.envRow}>
+                <Text style={styles.envRowLabel}>Salto (hop)</Text>
+                <Text style={styles.envRowValue}>{envResult?.hopSamples ?? 0}</Text>
+              </View>
+              <View style={styles.envRow}>
+                <Text style={styles.envRowLabel}>Pico</Text>
+                <Text style={styles.envRowValue}>
+                  {((envResult?.peak ?? 0) * 100).toFixed(1)}% MVC
+                </Text>
+              </View>
+              <View style={styles.envRow}>
+                <Text style={styles.envRowLabel}>Média</Text>
+                <Text style={styles.envRowValue}>
+                  {((envResult?.mean ?? 0) * 100).toFixed(1)}% MVC
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={sharedStyles.primaryButton}
+              onPress={() => setEnvResult(null)}
+              activeOpacity={0.85}
+            >
+              <Text style={sharedStyles.primaryButtonText}>Fechar</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ═══════════════════════════════════════
           Modal: Sem módulo
       ═══════════════════════════════════════ */}
       <Modal visible={showNoModModal} transparent animationType="fade" onRequestClose={() => setShowNoModModal(false)}>
@@ -486,19 +631,6 @@ const styles = StyleSheet.create({
   },
   statusBadgeTextActive: {
     color: colors.secondary,
-  },
-
-  /* ── Connecting (não é erro) ── */
-  connectingBox: {
-    backgroundColor: colors.success,
-    borderColor: colors.secondary + '30',
-    marginHorizontal: 20,
-    marginBottom: 4,
-  },
-  connectingText: {
-    color: colors.secondary,
-    fontStyle: 'normal',
-    textAlign: 'center',
   },
 
   /* ── Error ── */
@@ -700,5 +832,64 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+
+  /* ── Envelope RMS ── */
+  envField: {
+    width: '100%',
+    marginTop: 4,
+  },
+  envLabel: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    marginBottom: 6,
+  },
+  envInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: colors.cardBg,
+  },
+  envInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text.primary,
+    paddingVertical: 10,
+  },
+  envUnit: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    marginLeft: 8,
+  },
+  envError: {
+    fontSize: 13,
+    color: colors.text.red,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  envSummary: {
+    width: '100%',
+    marginTop: 4,
+  },
+  envRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  envRowLabel: {
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  envRowValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text.primary,
   },
 });

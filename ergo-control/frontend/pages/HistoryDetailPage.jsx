@@ -127,6 +127,17 @@ export default function HistoryDetailPage({ navigation, route }) {
   const imuData = Array.isArray(session.imuData) ? session.imuData : [];
   const emgChartData = syncService.downsampleArray(emgData);
 
+  // Envelope RMS calculado no fim da monitorização (ver monitoringService.stop).
+  // Vem guardado em fração do MVC — 1.0 = 100% MVC — por isso multiplica-se
+  // por 100 para mostrar em percentagem.
+  const envelope       = Array.isArray(session.envelope) ? session.envelope : [];
+  const envelopeParams = session.envelopeParams || null;
+  const envPct         = envelope.map((v) => v * 100);
+  const envChartData   = syncService.downsampleArray(envPct);
+  const envPeak        = envPct.length ? Math.max(...envPct) : 0;
+  const envMean        = envPct.length ? envPct.reduce((a, b) => a + b, 0) / envPct.length : 0;
+  const showEnvelope   = showEMG && envPct.length > 0;
+
   // ── Exportar CSV (resumo + valores dos gráficos, sem imagens) ───────────────
   const handleExportCsv = async () => {
     if (exportingCsv) return;
@@ -143,6 +154,8 @@ export default function HistoryDetailPage({ navigation, route }) {
         mvc: session.mvc,
         emgData,
         imuData,
+        envelope,
+        envelopeParams,
       });
       const fileUri = FileSystem.cacheDirectory + `sessao-${sessionNumber}.csv`;
       await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: 'utf8' });
@@ -179,6 +192,8 @@ export default function HistoryDetailPage({ navigation, route }) {
         showIMU,
         emgData,
         imuData,
+        envelope,
+        envelopeParams,
       });
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
@@ -237,6 +252,41 @@ export default function HistoryDetailPage({ navigation, route }) {
       </>
     );
   };
+
+  // ── Gráfico de linha — Envelope RMS (% MVC) ─────────────────────────────────
+  // Mesmo eixo temporal do gráfico do sinal em bruto: cada ponto é uma janela
+  // e as janelas cobrem a sessão toda, por isso o tempo total é o mesmo.
+  const renderEnvelopeLine = () => (
+    <>
+      <LineChart
+        data={envChartData.map((v) => ({ value: v }))}
+        height={90}
+        width={CHART_WIDTH}
+        color={colors.purple}
+        thickness={2}
+        curved
+        hideDataPoints
+        initialSpacing={4}
+        endSpacing={4}
+        disableScroll
+        adjustToWidth
+        noOfSections={3}
+        yAxisTextStyle={styles.axisText}
+        yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+        yAxisColor={colors.border}
+        xAxisColor={colors.border}
+        rulesColor={colors.border}
+        rulesType="dashed"
+      />
+      <ChartTimeAxis
+        labels={buildTimeAxisLabels(envChartData.length, session.duration)}
+        chartWidth={CHART_WIDTH}
+        yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+        initialSpacing={4}
+        endSpacing={4}
+      />
+    </>
+  );
 
   // ── Gráfico de linha — IMU (Pitch, Roll) ────────────────────────────────────
   const renderImuLine = () => {
@@ -344,6 +394,39 @@ export default function HistoryDetailPage({ navigation, route }) {
             <View style={styles.graphAreaReal}>
               {renderEmgLine()}
             </View>
+          </View>
+        )}
+
+        {/* ── sEMG - Envelope RMS ── */}
+        {showEnvelope && (
+          <View style={[sharedStyles.card, styles.sectionCard]}>
+            <Text style={styles.graphTitle}>sEMG - Envelope RMS</Text>
+            <View style={styles.graphAreaReal}>
+              {renderEnvelopeLine()}
+            </View>
+
+            <View style={styles.envStatsRow}>
+              <View style={styles.envStat}>
+                <Text style={styles.metaLabel}>Pico</Text>
+                <Text style={styles.metaValue}>{envPeak.toFixed(1)}% MVC</Text>
+              </View>
+              <View style={styles.envStat}>
+                <Text style={styles.metaLabel}>Média</Text>
+                <Text style={styles.metaValue}>{envMean.toFixed(1)}% MVC</Text>
+              </View>
+              <View style={styles.envStat}>
+                <Text style={styles.metaLabel}>Janelas</Text>
+                <Text style={styles.metaValue}>{envPct.length}</Text>
+              </View>
+            </View>
+
+            {envelopeParams && (
+              <Text style={styles.envParams}>
+                Janela {envelopeParams.windowMs} ms ({envelopeParams.windowSamples} amostras) ·
+                {' '}overlap {envelopeParams.overlapMs} ms ·
+                {' '}salto {envelopeParams.hopSamples} amostras
+              </Text>
+            )}
           </View>
         )}
 
@@ -539,6 +622,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 24,
     marginTop: 4,
+  },
+
+  /* ── Envelope RMS ── */
+  envStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  envStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  envParams: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 16,
   },
   imuLegendItem: {
     flexDirection: 'row',

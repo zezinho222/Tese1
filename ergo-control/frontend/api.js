@@ -108,10 +108,10 @@ export const api = {
       body: JSON.stringify({ sensorType, startTime, endTime, duration, mvc, alertCount, module }),
     }),
 
-  endSession: async (token, sessionId, { endTime, duration, mvc, alertCount, emgData, imuData }) =>
+  endSession: async (token, sessionId, { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams }) =>
     authFetch(`/api/sessions/${sessionId}/end`, token, {
       method: 'PATCH',
-      body: JSON.stringify({ endTime, duration, mvc, alertCount, emgData, imuData }),
+      body: JSON.stringify({ endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams }),
     }),
 
   deleteSession: async (token, sessionId) =>

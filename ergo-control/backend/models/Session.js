@@ -72,6 +72,20 @@ const sessionSchema = new mongoose.Schema(
       type: [[Number]],
       default: [],
     },
+    // Envelope RMS calculado no fim da monitorização, já normalizado pelo MVC
+    // (1.0 = 100% MVC). A janela e o overlap são escolhidos pelo utilizador
+    // no momento em que para a sessão.
+    envelope: {
+      type: [Number],
+      default: [],
+    },
+    envelopeParams: {
+      windowMs:      { type: Number, default: null }, // largura da janela (ms)
+      overlapMs:     { type: Number, default: null }, // overlap (ms)
+      fs:            { type: Number, default: null }, // frequência de amostragem (Hz)
+      windowSamples: { type: Number, default: null }, // = windowMs/1000 * fs
+      hopSamples:    { type: Number, default: null }, // = (windowMs-overlapMs)/1000 * fs
+    },
   },
   { timestamps: true }
 );

@@ -12,10 +12,28 @@
 import { buildTimeAxisLabels } from './chartAxis';
 
 const CHART_COLORS = {
-  emg:   '#F59E0B',
-  pitch: '#3B82F6',
-  roll:  '#10B981',
+  emg:      '#F59E0B',
+  pitch:    '#3B82F6',
+  roll:     '#10B981',
+  envelope: '#8B5CF6',
 };
+
+/**
+ * Instante (em segundos) do centro de cada janela do envelope RMS.
+ * A janela i começa na amostra i*hop e tem w amostras, por isso o seu centro
+ * está em (i*hop + w/2) / fs. É assim que o envelope fica alinhado no tempo
+ * com o sinal em bruto.
+ */
+function envelopeTimes(count, params) {
+  const { fs, hopSamples, windowSamples } = params || {};
+  if (!fs || !hopSamples || !windowSamples) return null;
+  return Array.from({ length: count }, (_, i) => (i * hopSamples + windowSamples / 2) / fs);
+}
+
+/** O envelope é guardado em fração do MVC (1.0 = 100% MVC) — aqui vai para %. */
+function envelopeToPercent(envelope) {
+  return (envelope || []).map((v) => v * 100);
+}
 
 function csvEscape(value) {
   const s = String(value ?? '');
@@ -36,6 +54,7 @@ function downsampleForChart(arr, maxPoints = 200) {
 /** CSV com o resumo da sessão + os valores brutos dos gráficos (sem imagens). */
 export function buildSessionCsv({
   sessionNumber, sensorLabel, dateStr, timeStr, durationSec, alertCount, mvc, emgData, imuData,
+  envelope, envelopeParams,
 }) {
   const lines = [];
   lines.push('Resumo da Sessão');
@@ -59,6 +78,33 @@ export function buildSessionCsv({
     lines.push('Dados IMU');
     lines.push('Amostra,Pitch,Roll');
     imuData.forEach((p, i) => lines.push(`${i + 1},${p?.[0] ?? ''},${p?.[1] ?? ''}`));
+    lines.push('');
+  }
+
+  if (Array.isArray(envelope) && envelope.length > 0) {
+    const pct   = envelopeToPercent(envelope);
+    const times = envelopeTimes(pct.length, envelopeParams);
+    const peak  = Math.max(...pct);
+    const mean  = pct.reduce((a, b) => a + b, 0) / pct.length;
+
+    lines.push('Envelope RMS');
+    if (envelopeParams) {
+      lines.push(`Largura da janela (ms),${envelopeParams.windowMs ?? ''}`);
+      lines.push(`Overlap (ms),${envelopeParams.overlapMs ?? ''}`);
+      lines.push(`Frequência de amostragem (Hz),${envelopeParams.fs ?? ''}`);
+      lines.push(`Amostras por janela,${envelopeParams.windowSamples ?? ''}`);
+      lines.push(`Salto (amostras),${envelopeParams.hopSamples ?? ''}`);
+    }
+    lines.push(`Janelas,${pct.length}`);
+    lines.push(`Pico (% MVC),${peak.toFixed(4)}`);
+    lines.push(`Média (% MVC),${mean.toFixed(4)}`);
+    lines.push('');
+    lines.push(times ? 'Janela,Tempo (s),Valor (% MVC)' : 'Janela,Valor (% MVC)');
+    pct.forEach((v, i) => {
+      lines.push(times
+        ? `${i + 1},${times[i].toFixed(4)},${v.toFixed(4)}`
+        : `${i + 1},${v.toFixed(4)}`);
+    });
     lines.push('');
   }
 
@@ -132,7 +178,7 @@ function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = 
 /** HTML do relatório completo (resumo + gráficos) a converter em PDF via expo-print. */
 export function buildSessionPdfHtml({
   sessionNumber, sensorLabel, dateStr, timeStr, durationStr, durationSec, alertCount, mvc,
-  showEMG, showIMU, emgData, imuData,
+  showEMG, showIMU, emgData, imuData, envelope, envelopeParams,
 }) {
   const emgChart = showEMG
     ? svgLineChart([{ data: downsampleForChart(emgData), color: CHART_COLORS.emg }], { totalSeconds: durationSec })
@@ -143,6 +189,14 @@ export function buildSessionPdfHtml({
         { data: (imuData || []).map((p) => p?.[1] ?? 0), color: CHART_COLORS.roll },
       ], { totalSeconds: durationSec })
     : '';
+
+  const envPct     = envelopeToPercent(envelope);
+  const hasEnvelope = showEMG && envPct.length > 0;
+  const envChart   = hasEnvelope
+    ? svgLineChart([{ data: downsampleForChart(envPct), color: CHART_COLORS.envelope }], { totalSeconds: durationSec })
+    : '';
+  const envPeak = hasEnvelope ? Math.max(...envPct) : 0;
+  const envMean = hasEnvelope ? envPct.reduce((a, b) => a + b, 0) / envPct.length : 0;
 
   return `
     <html>
@@ -171,6 +225,20 @@ export function buildSessionPdfHtml({
           ${mvc != null ? `<div class="item"><div class="label">MVC</div><div class="value">${mvc}</div></div>` : ''}
         </div>
         ${showEMG ? `<h2>sEMG - Resumo da Sessão</h2>${emgChart}` : ''}
+        ${hasEnvelope ? `
+          <h2>sEMG - Envelope RMS</h2>
+          <div class="grid">
+            <div class="item"><div class="label">Largura da janela</div><div class="value">${envelopeParams?.windowMs ?? '—'} ms</div></div>
+            <div class="item"><div class="label">Overlap</div><div class="value">${envelopeParams?.overlapMs ?? '—'} ms</div></div>
+            <div class="item"><div class="label">Janelas</div><div class="value">${envPct.length}</div></div>
+            <div class="item"><div class="label">Pico</div><div class="value">${envPeak.toFixed(1)}% MVC</div></div>
+            <div class="item"><div class="label">Média</div><div class="value">${envMean.toFixed(1)}% MVC</div></div>
+          </div>
+          ${envChart}
+          <div class="legend">
+            <span><span class="dot" style="background:${CHART_COLORS.envelope}"></span>RMS (% MVC) — janela ${envelopeParams?.windowSamples ?? '?'} amostras, salto ${envelopeParams?.hopSamples ?? '?'} amostras</span>
+          </div>
+        ` : ''}
         ${showIMU ? `
           <h2>IMU - Resumo da Sessão</h2>
           ${imuChart}
