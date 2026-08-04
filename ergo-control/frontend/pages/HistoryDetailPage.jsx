@@ -128,6 +128,13 @@ export default function HistoryDetailPage({ navigation, route }) {
   const emgChartData = syncService.downsampleArray(emgData);
   const imuChartData = syncService.downsampleArray(imuData);
 
+  // envelope já vem calculado da sessão (fração do MVC, 1.0 = 100%) — não
+  // precisa de downsample porque já é bem mais pequeno do que o sinal em bruto.
+  const envelope = Array.isArray(session.envelope) ? session.envelope : [];
+  const envelopeParams = session.envelopeParams || null;
+  const envelopePeak = envelope.length ? Math.max(...envelope) : 0;
+  const envelopeMean = envelope.length ? envelope.reduce((sum, v) => sum + v, 0) / envelope.length : 0;
+
   // ── Exportar CSV (resumo + valores dos gráficos, sem imagens) ───────────────
   const handleExportCsv = async () => {
     if (exportingCsv) return;
@@ -230,6 +237,49 @@ export default function HistoryDetailPage({ navigation, route }) {
         />
         <ChartTimeAxis
           labels={buildTimeAxisLabels(emgChartData.length, session.duration)}
+          chartWidth={CHART_WIDTH}
+          yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+          initialSpacing={4}
+          endSpacing={4}
+        />
+      </>
+    );
+  };
+
+  // ── Gráfico de linha — Envelope RMS (mesmo estilo dos outros gráficos) ──────
+  // Eixo X = tempo (ao longo da duração real da sessão), eixo Y = % do MVC.
+  const renderEnvelopeLine = () => {
+    if (!envelope.length) {
+      return (
+        <View style={styles.graphEmptyReal}>
+          <Text style={styles.noDataText}>Sem envelope guardado para esta sessão</Text>
+        </View>
+      );
+    }
+    return (
+      <>
+        <LineChart
+          data={envelope.map((v) => ({ value: v * 100 }))}
+          height={90}
+          width={CHART_WIDTH}
+          color={colors.purple}
+          thickness={2}
+          curved
+          hideDataPoints
+          initialSpacing={4}
+          endSpacing={4}
+          disableScroll
+          adjustToWidth
+          noOfSections={3}
+          yAxisTextStyle={styles.axisText}
+          yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+          yAxisColor={colors.border}
+          xAxisColor={colors.border}
+          rulesColor={colors.border}
+          rulesType="dashed"
+        />
+        <ChartTimeAxis
+          labels={buildTimeAxisLabels(envelope.length, session.duration)}
           chartWidth={CHART_WIDTH}
           yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
           initialSpacing={4}
@@ -344,6 +394,38 @@ export default function HistoryDetailPage({ navigation, route }) {
             <Text style={styles.graphTitle}>sEMG - Resumo da Sessão</Text>
             <View style={styles.graphAreaReal}>
               {renderEmgLine()}
+            </View>
+          </View>
+        )}
+
+        {/* ── Envelope RMS - Resumo da Sessão ── */}
+        {showEMG && envelope.length > 0 && (
+          <View style={[sharedStyles.card, styles.sectionCard]}>
+            <Text style={styles.graphTitle}>Envelope RMS - Resumo da Sessão</Text>
+            <View style={styles.graphAreaReal}>
+              {renderEnvelopeLine()}
+            </View>
+            <View style={styles.gridRow}>
+              <View style={styles.gridItem}>
+                <Text style={styles.metaLabel}>Janelas</Text>
+                <Text style={styles.metaValue}>{envelope.length}</Text>
+              </View>
+              <View style={styles.gridItem}>
+                <Text style={styles.metaLabel}>Pico</Text>
+                <Text style={styles.metaValue}>{(envelopePeak * 100).toFixed(1)}% MVC</Text>
+              </View>
+            </View>
+            <View style={styles.gridRow}>
+              <View style={styles.gridItem}>
+                <Text style={styles.metaLabel}>Média</Text>
+                <Text style={styles.metaValue}>{(envelopeMean * 100).toFixed(1)}% MVC</Text>
+              </View>
+              {envelopeParams && (
+                <View style={styles.gridItem}>
+                  <Text style={styles.metaLabel}>Janela / Salto</Text>
+                  <Text style={styles.metaValue}>{envelopeParams.windowMs}ms / {envelopeParams.overlapMs}ms</Text>
+                </View>
+              )}
             </View>
           </View>
         )}
