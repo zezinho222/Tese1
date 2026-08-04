@@ -130,10 +130,21 @@ export default function MonitoringPage({ navigation }) {
   // ── Confirmar paragem (manual) ───────────────────────────────────────────────
   // A monitorização para já aqui (módulo desligado, timers parados) — só
   // depois é que se pergunta a janela e o overlap do envelope RMS, cujo
-  // cálculo corre dentro de monitoringService.finishSession().
-  const handleConfirmStop = () => {
+  // cálculo corre dentro de monitoringService.finishSession(). O envelope é
+  // um conceito exclusivo do sEMG — em sessões só de IMU salta-se logo o
+  // pop-up e grava-se a sessão sem mais perguntas.
+  const handleConfirmStop = async () => {
     setShowStopModal(false);
+    const { sensorType } = monState; // ler antes de stopCapture() repor o estado
     monitoringService.stopCapture();
+
+    if (sensorType !== 'EMG' && sensorType !== 'DUAL') {
+      setStopping(true);
+      await monitoringService.finishSession({});
+      setStopping(false);
+      return;
+    }
+
     setEnvError('');
     setWindowMsInput(String(DEFAULT_WINDOW_MS));
     setOverlapMsInput(String(DEFAULT_OVERLAP_MS));

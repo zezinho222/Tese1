@@ -27,6 +27,7 @@ const ALERT_DEBOUNCE_MS = 700; // tempo mínimo acima do limite para contar como
 
 const IDLE_STATE = {
   isMonitoring: false,
+  sensorType: null, // 'EMG' | 'IMU' | 'DUAL' — usado para decidir se faz sentido pedir o envelope RMS ao parar
   elapsedSec: 0,
   alertCount: 0,
   emgPoints: [],
@@ -79,7 +80,7 @@ async function start({ sensorType, mvc, fs, token }) {
   fsValue     = fs ?? null;
   tokenGetter = () => token;
 
-  state = { ...IDLE_STATE, isMonitoring: true };
+  state = { ...IDLE_STATE, isMonitoring: true, sensorType };
   imuAlertTracker = createAlertTracker(ALERT_DEBOUNCE_MS);
 
   // Regista a sessão sempre localmente primeiro — funciona mesmo sem internet
@@ -150,6 +151,7 @@ function stopCapture() {
   pendingStop = {
     emgBuffer,
     imuBuffer,
+    sensorType: state.sensorType,
     endTime:    new Date(),
     duration:   state.elapsedSec,
     alertCount: state.alertCount,
@@ -170,16 +172,18 @@ function stopCapture() {
  */
 async function finishSession({ windowMs, overlapMs } = {}) {
   if (!pendingStop) return;
-  const { emgBuffer, imuBuffer, endTime, duration, alertCount } = pendingStop;
+  const { emgBuffer, imuBuffer, sensorType, endTime, duration, alertCount } = pendingStop;
   pendingStop = null;
 
+  // O envelope RMS é um conceito exclusivo do sEMG (é calculado a partir do
+  // sinal em bruto normalizado pelo MVC) — em sessões só de IMU não há sinal
+  // nenhum para isso, por isso nem se calcula.
+  const hasEMG = sensorType === 'EMG' || sensorType === 'DUAL';
+
   // Envelope RMS calculado uma única vez, sobre o sinal EMG completo da sessão.
-  const envResult = computeRmsEnvelope(emgBuffer, {
-    mvc: mvcValue,
-    fs:  fsValue,
-    windowMs,
-    overlapMs,
-  });
+  const envResult = hasEMG
+    ? computeRmsEnvelope(emgBuffer, { mvc: mvcValue, fs: fsValue, windowMs, overlapMs })
+    : null;
 
   // Atualiza a sessão local com os dados finais — sempre grava, mesmo offline.
   // emgData e imuData gravam-se AMBOS em bruto (todas as amostras recolhidas,
@@ -194,14 +198,14 @@ async function finishSession({ windowMs, overlapMs } = {}) {
       alertCount,
       emgData:    emgBuffer,
       imuData:    imuBuffer,
-      envelope:   envResult.envelope,
-      envelopeParams: {
+      envelope:   envResult ? envResult.envelope : [],
+      envelopeParams: envResult ? {
         windowMs:      envResult.windowMs,
         overlapMs:     envResult.overlapMs,
         fs:            envResult.fs,
         windowSamples: envResult.windowSamples,
         hopSamples:    envResult.hopSamples,
-      },
+      } : null,
     });
     syncService.trySyncAll(tokenGetter());
   }

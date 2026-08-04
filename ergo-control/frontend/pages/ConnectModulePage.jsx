@@ -86,7 +86,8 @@ export default function ConnectModulePage({ navigation }) {
     return 'IMU';
   };
 
-  // ── Confirmar seleção → abre modal POT ───────────────────────────────────
+  // ── Confirmar seleção → abre modal POT (só faz sentido para sEMG; em IMU
+  //    puro salta-se logo para o modal FREQ) ────────────────────────────────
   const handleSeguinte = () => {
     if (!atLeastOne) {
       setError('Seleciona pelo menos um sensor.');
@@ -96,8 +97,12 @@ export default function ConnectModulePage({ navigation }) {
     moduleService.sendCommand('Olá');
 
     setError('');
-    setSelectedOffset(null);
-    setModalStep(STEP_POT);
+    if (semgOn) {
+      setSelectedOffset(null);
+      setModalStep(STEP_POT);
+    } else {
+      setModalStep(STEP_FREQ);
+    }
   };
 
   // ── Confirmar POT → abre modal FREQ ──────────────────────────────────────
@@ -126,15 +131,17 @@ export default function ConnectModulePage({ navigation }) {
     moduleService.sendCommand('FREQ');
     moduleService.sendCommand(String(freqValue));
 
-    // Monta o objecto do módulo
+    // Monta o objecto do módulo — offset é um conceito exclusivo do sEMG,
+    // por isso fica a null quando só o IMU está selecionado (nesse caso o
+    // modal POT nem chega a aparecer, ver handleSeguinte).
     const moduleData = {
       name:            'ErgoControl',
       ip:              MODULE_IP,
       port:            80,
       battery:         null,
       sensorSelection: sensorString,
-      offsetValue:     selectedOffset.value,
-      offsetLabel:     selectedOffset.label,
+      offsetValue:     semgOn ? selectedOffset.value : null,
+      offsetLabel:     semgOn ? selectedOffset.label : null,
       freqHz,
       freqValue,
       calibrated:      { sEMG: false, IMU: imuOn },
