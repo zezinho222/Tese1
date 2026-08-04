@@ -17,6 +17,7 @@ import syncService from './syncService';
 import moduleService from './moduleService';
 import notificationService from './notificationService';
 import { createAlertTracker } from './utils/alertTracker';
+import { computeRmsEnvelope } from './utils/emgProcessing';
 
 const REFRESH_MS     = 1000; // intervalo de atualização do gráfico
 const DISPLAY_POINTS = 20;  // quantos pontos mostrar no gráfico
@@ -37,6 +38,7 @@ let listeners = new Set(); // callbacks(state) — ecrãs atualmente montados a 
 
 let sessionId   = null;
 let mvcValue    = null; // só guardado com a sessão para referência histórica — já não é usado para calcular %MVC durante a monitorização
+let fsValue     = null; // frequência de amostragem (Hz) — usada no cálculo do envelope RMS ao parar
 let tokenGetter = () => null;
 
 let elapsedInterval = null;
@@ -64,10 +66,11 @@ function getState() {
  * essas verificações continuam a ser responsabilidade do ecrã, só a
  * execução em si (timers, deteção de alertas, sessão) vive aqui.
  */
-async function start({ sensorType, mvc, token }) {
+async function start({ sensorType, mvc, fs, token }) {
   if (state.isMonitoring) return;
 
   mvcValue    = mvc ?? null;
+  fsValue     = fs ?? null;
   tokenGetter = () => token;
 
   state = { ...IDLE_STATE, isMonitoring: true };
@@ -122,8 +125,15 @@ async function start({ sensorType, mvc, token }) {
   notify();
 }
 
-/** Para a monitorização em curso e guarda a sessão (local + backend). Seguro chamar mesmo sem monitorização ativa. */
-async function stop() {
+/**
+ * Para a monitorização em curso e guarda a sessão (local + backend). Seguro
+ * chamar mesmo sem monitorização ativa.
+ * @param {object} [opts]
+ * @param {number} [opts.windowMs]  - largura da janela do envelope RMS (ms)
+ * @param {number} [opts.overlapMs] - overlap do envelope RMS (ms)
+ * @returns {object|undefined} resultado de computeRmsEnvelope (para a UI mostrar o resumo)
+ */
+async function stop({ windowMs, overlapMs } = {}) {
   if (!state.isMonitoring) return;
 
   clearInterval(elapsedInterval);
@@ -134,6 +144,14 @@ async function stop() {
   const endTime  = new Date();
   const duration = state.elapsedSec;
   const alertCount = state.alertCount;
+
+  // Envelope RMS calculado uma única vez, sobre o sinal EMG completo da sessão.
+  const envResult = computeRmsEnvelope(emgBuffer, {
+    mvc: mvcValue,
+    fs:  fsValue,
+    windowMs,
+    overlapMs,
+  });
 
   // Atualiza a sessão local com os dados finais — sempre grava, mesmo offline.
   // emgData e imuData gravam-se AMBOS em bruto (todas as amostras recolhidas,
@@ -148,6 +166,14 @@ async function stop() {
       alertCount,
       emgData:    emgBuffer,
       imuData:    imuBuffer,
+      envelope:   envResult.envelope,
+      envelopeParams: {
+        windowMs:      envResult.windowMs,
+        overlapMs:     envResult.overlapMs,
+        fs:            envResult.fs,
+        windowSamples: envResult.windowSamples,
+        hopSamples:    envResult.hopSamples,
+      },
     });
     syncService.trySyncAll(tokenGetter());
   }
@@ -155,6 +181,8 @@ async function stop() {
   sessionId = null;
   state = { ...IDLE_STATE };
   notify();
+
+  return envResult;
 }
 
 // Paragem automática ao perder a ligação ao módulo a meio da sessão —
