@@ -395,7 +395,7 @@ export default function CalibratePage({ navigation }) {
             <Animated.View style={[styles.recDot, { opacity: dotAnim }]} />
             <Text style={styles.modalTitle}>A adquirir MVC</Text>
             <Text style={styles.modalSubtitle}>
-              Mantém a contração máxima.{'\n'}Pára em:
+              Mantém a contração máxima.{'\n'}Para em:
             </Text>
             <Text style={styles.countdownText}>{countdown}s</Text>
             <TouchableOpacity
