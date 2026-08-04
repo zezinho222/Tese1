@@ -60,7 +60,7 @@ const register = async (req, res) => {
       });
     }
 
-    // Criar utilizador (a password é hasheada automaticamente pelo model)
+    // Criar utilizador
     const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
