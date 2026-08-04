@@ -1,5 +1,8 @@
 const Module = require('../models/Module');
 
+// sensorSelection usa 'EMG', mas o campo `type` (tipo base do hardware) usa 'sEMG'
+const SENSOR_TO_TYPE = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'DUAL' };
+
 const MODULE_IP   = '192.168.4.1';
 const MODULE_PORT = 80;
 const SCAN_TIMEOUT = 5000; // ms
@@ -50,6 +53,7 @@ const addModule = async (req, res) => {
       existing.port            = port || MODULE_PORT;
       existing.battery         = battery ?? null;
       existing.sensorSelection = sensorSelection || existing.sensorSelection;
+      existing.type            = SENSOR_TO_TYPE[existing.sensorSelection] || existing.type;
       existing.offsetValue     = offsetValue     ?? existing.offsetValue;
       existing.offsetLabel     = offsetLabel     || existing.offsetLabel;
       existing.freqHz          = freqHz          ?? existing.freqHz;
@@ -66,6 +70,7 @@ const addModule = async (req, res) => {
       ip,
       port:            port || MODULE_PORT,
       battery:         battery ?? null,
+      type:            SENSOR_TO_TYPE[sensorSelection] || 'DUAL',
       sensorSelection: sensorSelection || null,
       offsetValue:     offsetValue     ?? null,
       offsetLabel:     offsetLabel     || null,

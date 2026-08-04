@@ -15,7 +15,7 @@ const moduleSchema = new mongoose.Schema(
     // Tipo base do módulo (hardware)
     type: {
       type: String,
-      enum: ['sEMG', 'IMU', 'EMS', 'DUAL'],
+      enum: ['sEMG', 'IMU', 'DUAL'],
       default: 'DUAL',
     },
     ip: {
