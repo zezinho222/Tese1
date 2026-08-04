@@ -12,9 +12,10 @@
 import { buildTimeAxisLabels } from './chartAxis';
 
 const CHART_COLORS = {
-  emg:   '#F59E0B',
-  pitch: '#3B82F6',
-  roll:  '#10B981',
+  emg:      '#F59E0B',
+  pitch:    '#3B82F6',
+  roll:     '#10B981',
+  envelope: '#8B5CF6',
 };
 
 function csvEscape(value) {
@@ -36,6 +37,7 @@ function downsampleForChart(arr, maxPoints = 200) {
 /** CSV com o resumo da sessão + os valores brutos dos gráficos (sem imagens). */
 export function buildSessionCsv({
   sessionNumber, sensorLabel, dateStr, timeStr, durationSec, alertCount, mvc, emgData, imuData,
+  envelope, envelopeParams,
 }) {
   const lines = [];
   lines.push('Resumo da Sessão');
@@ -59,6 +61,26 @@ export function buildSessionCsv({
     lines.push('Dados IMU');
     lines.push('Amostra,Pitch,Roll');
     imuData.forEach((p, i) => lines.push(`${i + 1},${p?.[0] ?? ''},${p?.[1] ?? ''}`));
+    lines.push('');
+  }
+
+  if (Array.isArray(envelope) && envelope.length > 0) {
+    const peak = Math.max(...envelope);
+    const mean = envelope.reduce((sum, v) => sum + v, 0) / envelope.length;
+
+    lines.push('Envelope RMS');
+    if (envelopeParams) {
+      lines.push(`Largura da janela (ms),${envelopeParams.windowMs}`);
+      lines.push(`Overlap (ms),${envelopeParams.overlapMs}`);
+      lines.push(`Amostras / janela,${envelopeParams.windowSamples}`);
+      lines.push(`Salto (amostras),${envelopeParams.hopSamples}`);
+    }
+    lines.push(`Janelas,${envelope.length}`);
+    lines.push(`Pico (% MVC),${(peak * 100).toFixed(2)}`);
+    lines.push(`Média (% MVC),${(mean * 100).toFixed(2)}`);
+    lines.push('');
+    lines.push('Janela,Envelope (% MVC)');
+    envelope.forEach((v, i) => lines.push(`${i + 1},${(v * 100).toFixed(2)}`));
     lines.push('');
   }
 
@@ -132,7 +154,7 @@ function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = 
 /** HTML do relatório completo (resumo + gráficos) a converter em PDF via expo-print. */
 export function buildSessionPdfHtml({
   sessionNumber, sensorLabel, dateStr, timeStr, durationStr, durationSec, alertCount, mvc,
-  showEMG, showIMU, emgData, imuData,
+  showEMG, showIMU, emgData, imuData, envelope, envelopeParams,
 }) {
   const emgChart = showEMG
     ? svgLineChart([{ data: downsampleForChart(emgData), color: CHART_COLORS.emg }], { totalSeconds: durationSec })
@@ -147,6 +169,15 @@ export function buildSessionPdfHtml({
         { data: imuChartData.map((p) => p?.[1] ?? 0), color: CHART_COLORS.roll },
       ], { totalSeconds: durationSec })
     : '';
+
+  // O envelope já vem calculado (fração do MVC) — não precisa de downsample,
+  // é bem mais pequeno do que o sinal em bruto.
+  const hasEnvelope = showEMG && Array.isArray(envelope) && envelope.length > 0;
+  const envelopeChart = hasEnvelope
+    ? svgLineChart([{ data: envelope.map((v) => v * 100), color: CHART_COLORS.envelope }], { totalSeconds: durationSec })
+    : '';
+  const envelopePeak = hasEnvelope ? Math.max(...envelope) : 0;
+  const envelopeMean = hasEnvelope ? envelope.reduce((sum, v) => sum + v, 0) / envelope.length : 0;
 
   return `
     <html>
@@ -175,6 +206,16 @@ export function buildSessionPdfHtml({
           ${mvc != null ? `<div class="item"><div class="label">MVC</div><div class="value">${mvc}</div></div>` : ''}
         </div>
         ${showEMG ? `<h2>sEMG - Resumo da Sessão</h2>${emgChart}` : ''}
+        ${hasEnvelope ? `
+          <h2>Envelope RMS - Resumo da Sessão</h2>
+          ${envelopeChart}
+          <div class="grid">
+            <div class="item"><div class="label">Janelas</div><div class="value">${envelope.length}</div></div>
+            <div class="item"><div class="label">Pico</div><div class="value">${(envelopePeak * 100).toFixed(1)}% MVC</div></div>
+            <div class="item"><div class="label">Média</div><div class="value">${(envelopeMean * 100).toFixed(1)}% MVC</div></div>
+            ${envelopeParams ? `<div class="item"><div class="label">Janela / Salto</div><div class="value">${envelopeParams.windowMs}ms / ${envelopeParams.overlapMs}ms</div></div>` : ''}
+          </div>
+        ` : ''}
         ${showIMU ? `
           <h2>IMU - Resumo da Sessão</h2>
           ${imuChart}

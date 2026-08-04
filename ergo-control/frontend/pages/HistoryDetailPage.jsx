@@ -151,6 +151,8 @@ export default function HistoryDetailPage({ navigation, route }) {
         mvc: session.mvc,
         emgData,
         imuData,
+        envelope,
+        envelopeParams,
       });
       const fileUri = FileSystem.cacheDirectory + `sessao-${sessionNumber}.csv`;
       await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: 'utf8' });
@@ -187,6 +189,8 @@ export default function HistoryDetailPage({ navigation, route }) {
         showIMU,
         emgData,
         imuData,
+        envelope,
+        envelopeParams,
       });
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
