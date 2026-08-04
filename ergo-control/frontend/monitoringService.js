@@ -45,6 +45,12 @@ let elapsedInterval = null;
 let graphInterval   = null;
 let imuAlertTracker = null;
 
+// Dados capturados por stopCapture() — a monitorização já está parada nesta
+// altura (módulo desligado, timers limpos), só falta o envelope (que precisa
+// da janela/overlap escolhidos no pop-up) para finishSession() gravar a
+// sessão. Ver comentário em stopCapture().
+let pendingStop = null;
+
 function notify() {
   const snapshot = { ...state };
   listeners.forEach((cb) => cb(snapshot));
@@ -126,14 +132,14 @@ async function start({ sensorType, mvc, fs, token }) {
 }
 
 /**
- * Para a monitorização em curso e guarda a sessão (local + backend). Seguro
- * chamar mesmo sem monitorização ativa.
- * @param {object} [opts]
- * @param {number} [opts.windowMs]  - largura da janela do envelope RMS (ms)
- * @param {number} [opts.overlapMs] - overlap do envelope RMS (ms)
- * @returns {object|undefined} resultado de computeRmsEnvelope (para a UI mostrar o resumo)
+ * Para a monitorização de facto (desliga o módulo, limpa os timers, congela
+ * o gráfico) — sem ainda calcular o envelope nem gravar a sessão. Chamado
+ * assim que o utilizador confirma a paragem, ANTES do pop-up da janela/
+ * overlap aparecer, para a monitorização parar logo, sem esperar pela
+ * escolha desses valores. Os dados ficam guardados em `pendingStop` até
+ * finishSession() ser chamado. Seguro chamar mesmo sem monitorização ativa.
  */
-async function stop({ windowMs, overlapMs } = {}) {
+function stopCapture() {
   if (!state.isMonitoring) return;
 
   clearInterval(elapsedInterval);
@@ -141,9 +147,31 @@ async function stop({ windowMs, overlapMs } = {}) {
 
   const { emgBuffer, imuBuffer } = moduleService.stopMonitoring(); // envia IDLE internamente (falha em silêncio se já não há ligação)
 
-  const endTime  = new Date();
-  const duration = state.elapsedSec;
-  const alertCount = state.alertCount;
+  pendingStop = {
+    emgBuffer,
+    imuBuffer,
+    endTime:    new Date(),
+    duration:   state.elapsedSec,
+    alertCount: state.alertCount,
+  };
+
+  state = { ...IDLE_STATE };
+  notify();
+}
+
+/**
+ * Calcula o envelope RMS (com a janela/overlap escolhidos no pop-up) sobre
+ * os dados capturados por stopCapture() e grava a sessão (local + backend).
+ * Seguro chamar mesmo sem paragem pendente.
+ * @param {object} [opts]
+ * @param {number} [opts.windowMs]  - largura da janela do envelope RMS (ms)
+ * @param {number} [opts.overlapMs] - overlap do envelope RMS (ms)
+ * @returns {object|undefined} resultado de computeRmsEnvelope (para a UI mostrar o resumo)
+ */
+async function finishSession({ windowMs, overlapMs } = {}) {
+  if (!pendingStop) return;
+  const { emgBuffer, imuBuffer, endTime, duration, alertCount } = pendingStop;
+  pendingStop = null;
 
   // Envelope RMS calculado uma única vez, sobre o sinal EMG completo da sessão.
   const envResult = computeRmsEnvelope(emgBuffer, {
@@ -179,10 +207,19 @@ async function stop({ windowMs, overlapMs } = {}) {
   }
 
   sessionId = null;
-  state = { ...IDLE_STATE };
-  notify();
-
   return envResult;
+}
+
+/**
+ * Para a monitorização e guarda logo a sessão com a janela/overlap por
+ * omissão — usado quando não há pop-up para o utilizador escolher (ex:
+ * paragem automática ao perder a ligação ao módulo). Seguro chamar mesmo
+ * sem monitorização ativa.
+ */
+async function stop() {
+  if (!state.isMonitoring) return;
+  stopCapture();
+  return finishSession({});
 }
 
 // Paragem automática ao perder a ligação ao módulo a meio da sessão —
@@ -198,6 +235,8 @@ moduleService.addCloseListener('monitoringService', () => {
 export default {
   start,
   stop,
+  stopCapture,
+  finishSession,
   subscribe,
   getState,
 };

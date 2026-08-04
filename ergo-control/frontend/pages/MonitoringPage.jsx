@@ -128,11 +128,12 @@ export default function MonitoringPage({ navigation }) {
   };
 
   // ── Confirmar paragem (manual) ───────────────────────────────────────────────
-  // Depois de confirmar, pergunta-se a janela e o overlap do envelope RMS
-  // antes de parar de facto — o cálculo corre uma única vez, sobre o sinal
-  // completo da sessão, dentro de monitoringService.stop().
+  // A monitorização para já aqui (módulo desligado, timers parados) — só
+  // depois é que se pergunta a janela e o overlap do envelope RMS, cujo
+  // cálculo corre dentro de monitoringService.finishSession().
   const handleConfirmStop = () => {
     setShowStopModal(false);
+    monitoringService.stopCapture();
     setEnvError('');
     setWindowMsInput(String(DEFAULT_WINDOW_MS));
     setOverlapMsInput(String(DEFAULT_OVERLAP_MS));
@@ -162,7 +163,7 @@ export default function MonitoringPage({ navigation }) {
 
     setShowEnvModal(false);
     setStopping(true);
-    const env = await monitoringService.stop({ windowMs, overlapMs });
+    const env = await monitoringService.finishSession({ windowMs, overlapMs });
     setStopping(false);
     if (env) setEnvResult(env);
   };
@@ -431,11 +432,11 @@ export default function MonitoringPage({ navigation }) {
             {envError ? <Text style={styles.envError}>{envError}</Text> : null}
 
             <TouchableOpacity
-              style={[sharedStyles.primaryButton, sharedStyles.confirmButton]}
+              style={sharedStyles.primaryButton}
               onPress={handleConfirmEnvelope}
               activeOpacity={0.85}
             >
-              <Text style={sharedStyles.confirmButtonText}>Calcular e guardar</Text>
+              <Text style={sharedStyles.primaryButtonText}>Calcular e guardar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[sharedStyles.primaryButton, sharedStyles.cancelButton]}
