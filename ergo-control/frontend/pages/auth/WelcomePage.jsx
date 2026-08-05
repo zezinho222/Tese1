@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { colors, sharedStyles } from '../../utils/shared-Styles';
 
+// Página de boas-vindas
 export default function WelcomePage({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>

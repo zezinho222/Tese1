@@ -22,17 +22,17 @@ import syncService from '../syncService';
 const STORAGE_KEY = '@ergocontrol/connected_module';
 const MODULE_IP   = '192.168.4.1';
 
-// ── Opções de offset ───────────────────────────────────────────────────────────
+// Opções de offset
 const OFFSET_OPTIONS = [
   { label: '0.9 V', value: 0 },
   { label: '1.9 V', value: 2500 },
   { label: '2.6 V', value: 3605 },
 ];
 
-// ── Fórmula de frequência ─────────────────────────────────────────────────────
+// Fórmula de frequência
 const calcFreqValue = (hz) => Math.round((280e6) / (27 * hz));
 
-// ── Sensores selecionáveis ────────────────────────────────────────────────────
+// Lista de sensores disponíveis
 const SENSORS = [
   {
     id: 'sEMG',
@@ -51,14 +51,14 @@ const SENSORS = [
     accentBg: colors.infoBorder,
   },
 ];
-
-// ── Modal de step ─────────────────────────────────────────────────────────────
+ 
 // step: 0 = seleção | 1 = POT | 2 = FREQ | 3 = a gravar
 const STEP_SELECTION = 0;
 const STEP_POT       = 1;
 const STEP_FREQ      = 2;
 const STEP_SAVING    = 3;
 
+// Página principal
 export default function ConnectModulePage({ navigation }) {
   const { token } = useAuth();
 
@@ -77,7 +77,7 @@ export default function ConnectModulePage({ navigation }) {
   const [saving,          setSaving]          = useState(false);
   const [leaving,         setLeaving]         = useState(false);
 
-  // ── Lógica de seleção ─────────────────────────────────────────────────────
+  // Lógica de seleção 
   const atLeastOne = semgOn || imuOn;
 
   const getSensorString = () => {
@@ -86,8 +86,7 @@ export default function ConnectModulePage({ navigation }) {
     return 'IMU';
   };
 
-  // ── Confirmar seleção → abre modal POT (só faz sentido para sEMG; em IMU
-  //    puro salta-se logo para o modal FREQ) ────────────────────────────────
+  // Confirmar seleção -> abre modal POT (no IMU salta logo para o modal FREQ)
   const handleSeguinte = () => {
     if (!atLeastOne) {
       setError('Seleciona pelo menos um sensor.');
@@ -105,7 +104,7 @@ export default function ConnectModulePage({ navigation }) {
     }
   };
 
-  // ── Confirmar POT → abre modal FREQ ──────────────────────────────────────
+  // Confirmar POT -> abre modal FREQ
   const handleConfirmPot = () => {
     if (!selectedOffset) {
       setError('Seleciona um valor de offset.');
@@ -118,7 +117,7 @@ export default function ConnectModulePage({ navigation }) {
     setModalStep(STEP_FREQ);
   };
 
-  // ── Confirmar FREQ → guarda tudo ─────────────────────────────────────────
+  // Confirmar FREQ -> guarda tudo 
   const handleConfirmFreq = async () => {
     setError('');
     setSaving(true);
@@ -131,9 +130,6 @@ export default function ConnectModulePage({ navigation }) {
     moduleService.sendCommand('FREQ');
     moduleService.sendCommand(String(freqValue));
 
-    // Monta o objecto do módulo — offset é um conceito exclusivo do sEMG,
-    // por isso fica a null quando só o IMU está selecionado (nesse caso o
-    // modal POT nem chega a aparecer, ver handleSeguinte).
     const moduleData = {
       name:            'ErgoControl',
       ip:              MODULE_IP,
@@ -148,13 +144,8 @@ export default function ConnectModulePage({ navigation }) {
       mvc:             null,
     };
 
-    // Guarda sempre localmente primeiro (offline-first) — não depende de internet
+    // Guarda sempre localmente primeiro
     await syncService.queueModuleSave(moduleData);
-
-    // Tenta sincronizar já com o backend (é seguro esperar: se não houver
-    // internet real, trySyncAll sai logo via hasInternet() sem bloquear).
-    // Se não houver internet, fica para o listener automático em App.js
-    // sincronizar assim que a houver.
     await syncService.trySyncAll(token);
 
     setSaving(false);
@@ -171,8 +162,6 @@ export default function ConnectModulePage({ navigation }) {
     setModalStep(STEP_SELECTION);
   };
 
-  // ── Voltar atrás: sai do fluxo sem guardar → desliga o WebSocket
-  //    e liberta a Wi-Fi forçada, para o resto da app voltar a usar internet ──
   const handleBack = async () => {
     if (leaving) return;
     setLeaving(true);
@@ -186,7 +175,6 @@ export default function ConnectModulePage({ navigation }) {
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -210,7 +198,7 @@ export default function ConnectModulePage({ navigation }) {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionHeading}>Conectar Módulos</Text>
 
-        {/* ── Stepper: Passo 2 ativo ── */}
+        {/* Stepper: Passo 2 */}
         <View style={styles.stepper}>
           <View style={styles.stepDone}>
             <Text style={styles.stepDoneNumber}>✓</Text>
@@ -227,7 +215,7 @@ export default function ConnectModulePage({ navigation }) {
 
         <Text style={styles.sectionLabel}>SENSORES</Text>
 
-        {/* ── Lista de sensores (multi-select) ── */}
+        {/* Lista de sensores */}
         <View style={styles.sensorList}>
           {SENSORS.map((s) => {
             const isOn     = s.id === 'sEMG' ? semgOn : imuOn;
@@ -298,7 +286,6 @@ export default function ConnectModulePage({ navigation }) {
         )}
       </ScrollView>
 
-      {/* ── Botão Seguinte ── */}
       <View style={styles.bottomWrap}>
         <TouchableOpacity
           style={[
@@ -320,9 +307,8 @@ export default function ConnectModulePage({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* ═══════════════════════════════════════
-          Modal POT — Escolha de Offset
-      ═══════════════════════════════════════ */}
+
+      {/* Escolha de Offset */}
       <Modal
         visible={modalStep === STEP_POT}
         transparent
@@ -399,9 +385,7 @@ export default function ConnectModulePage({ navigation }) {
         </View>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal FREQ — Escolha de Frequência
-      ═══════════════════════════════════════ */}
+      {/* Escolha de Frequência */}
       <Modal
         visible={modalStep === STEP_FREQ}
         transparent
@@ -470,9 +454,7 @@ export default function ConnectModulePage({ navigation }) {
         </View>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal: A gravar
-      ═══════════════════════════════════════ */}
+      {/* A gravar */}
       <Modal visible={modalStep === STEP_SAVING} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={[styles.modalCard, { paddingVertical: 40, alignItems: 'center', gap: 16 }]}>
@@ -490,8 +472,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
-  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -513,15 +493,11 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 50,
   },
-
-  /* ── Scroll ── */
   scroll: {
     paddingHorizontal: 20,
     paddingBottom: 16,
     gap: 12,
   },
-
-  /* ── Títulos de secção ── */
   sectionHeading: {
     fontSize: 24,
     fontWeight: '800',
@@ -537,8 +513,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 8,
   },
-
-  /* ── Stepper ── */
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -597,8 +571,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginLeft: 8,
   },
-
-  /* ── Sensores ── */
   sensorList: {
     gap: 12,
   },
@@ -629,8 +601,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: 3,
   },
-
-  /* ── Erro ── */
   errorBox: {
     backgroundColor: colors.redBackground,
     borderColor: colors.text.red + '30',
@@ -640,8 +610,6 @@ const styles = StyleSheet.create({
     fontStyle: 'normal',
     textAlign: 'center',
   },
-
-  /* ── Rodapé ── */
   bottomWrap: {
     paddingHorizontal: 20,
     paddingVertical: 14,
@@ -649,8 +617,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-
-  /* ── Modais — estrutura base ── */
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -687,8 +653,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 21,
   },
-
-  /* ── Modal POT — Opções de offset ── */
   optionList: {
     gap: 8,
   },
@@ -703,8 +667,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
   },
-
-  /* ── Modal FREQ — Frequência ── */
   freqValueWrap: {
     flexDirection: 'row',
     alignItems: 'baseline',

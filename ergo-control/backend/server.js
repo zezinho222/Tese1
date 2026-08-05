@@ -8,10 +8,12 @@ const userRoutes = require('./routes/userRoutes');
 const moduleRoutes = require('./routes/moduleRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 
+// Carregar variáveis de ambiente
 dotenv.config();
 
 const app = express();
 
+// Conectar à base de dados
 connectDB();
 
 app.use(cors());
@@ -20,7 +22,7 @@ app.use(express.json({ limit: '20mb' }));
 // Servir assets do frontend
 app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
 
-// ─── Página de redefinição de password (forgot password) ──────────────────
+// Página de redefinição de password
 app.get('/reset-password/:token', (req, res) => {
   const { token } = req.params;
   res.send(buildHtmlPage({
@@ -90,7 +92,7 @@ app.get('/reset-password/:token', (req, res) => {
   }));
 });
 
-// ─── Página de verificação de alteração de email ──────────────────────────
+// Página de verificação de alteração de email
 app.get('/verify-email-change/:token', (req, res) => {
   const { token } = req.params;
   res.send(`
@@ -143,7 +145,7 @@ app.get('/verify-email-change/:token', (req, res) => {
   `);
 });
 
-// ─── Página de verificação de alteração de password ───────────────────────
+// Página de verificação de alteração de password 
 app.get('/verify-password-change/:token', (req, res) => {
   const { token } = req.params;
   res.send(buildHtmlPage({
@@ -210,7 +212,7 @@ app.get('/verify-password-change/:token', (req, res) => {
   }));
 });
 
-// ─── Rotas ────────────────────────────────────────────────────────────────
+// Rotas 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/modules', moduleRoutes);
@@ -226,7 +228,7 @@ app.listen(PORT, () => {
   console.log(`Servidor a correr na porta ${PORT}`);
 });
 
-// ─── Helpers HTML ─────────────────────────────────────────────────────────
+// Funções auxiliares para construir páginas HTML 
 function getBaseStyles() {
   return `
     <style>
@@ -328,6 +330,7 @@ function getBaseStyles() {
   `;
 }
 
+// Função para construir a páginas HTML
 function buildHtmlPage({ title, subtitle, field1, field2, btnText, script }) {
   return `
     <!DOCTYPE html>

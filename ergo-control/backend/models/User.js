@@ -1,13 +1,16 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+// Esquema dos utilizadores na base de dados
 const userSchema = new mongoose.Schema(
   {
+    // Nome do utilizador
     name: {
       type: String,
       required: [true, 'O nome é obrigatório'],
       trim: true,
     },
+    // Email do utilizador
     email: {
       type: String,
       required: [true, 'O email é obrigatório'],
@@ -16,44 +19,50 @@ const userSchema = new mongoose.Schema(
       trim: true,
       match: [/\S+@\S+\.\S+/, 'Email inválido'],
     },
+    // Telefone do utilizador(opcional)
     phone: {
       type: String,
       trim: true,
       default: null,
     },
+    // Password do utilizador
     password: {
       type: String,
       required: [true, 'A password é obrigatória'],
       minlength: [8, 'A password deve ter pelo menos 8 caracteres'],
       select: false,
     },
-    // Reset de password (forgot password - sem autenticação)
+    // Reset de password
     passwordResetToken: {
       type: String,
       default: null,
     },
+    // Data de expiração do reset de password
     passwordResetExpires: {
       type: Date,
       default: null,
     },
-    // Alteração de email (requer autenticação + verificação por email)
+    // Alteração de email
     emailChangeToken: {
       type: String,
       default: null,
     },
+    // Email novo a confirmar
     emailChangePending: {
       type: String,
       default: null,
     },
+    // Data de expiração da alteração de email
     emailChangeExpires: {
       type: Date,
       default: null,
     },
-    // Alteração de password (requer autenticação + verificação por email)
+    // Alteração de password
     passwordChangeToken: {
       type: String,
       default: null,
     },
+    // Data de expiração da alteração de password
     passwordChangeExpires: {
       type: Date,
       default: null,

@@ -1,10 +1,3 @@
-/**
- * notificationService.js
- * Notificações locais (sem servidor) para alertas de postura/esforço e
- * estado do dispositivo, com as preferências geridas em NotificationsPage
- * e guardadas em AsyncStorage — para não dependerem de estar com a app
- * aberta nem de haver internet.
- */
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -13,19 +6,12 @@ const SETTINGS_KEY = '@ergocontrol/notification_settings';
 const CHANNEL_ID = 'ergocontrol-alerts';
 
 const DEFAULT_SETTINGS = {
-  notifications: true, // Alertas de Postura → Notificações
-  sound: false,        // Alertas de Postura → Som
-  device: true,        // Sistema → Estado do Dispositivo
+  notifications: true, // Notificações
+  sound: false,        // Som
+  device: true,        // Estado do Dispositivo
 };
 
 Notifications.setNotificationHandler({
-  // shouldPlaySound tem de ser lido do próprio pedido de notificação — se
-  // ficar fixo em false, nenhuma notificação toca som enquanto a app está em
-  // primeiro plano (é precisamente quando os alertas de postura disparam,
-  // durante a monitorização), independentemente do toggle "Som" estar ativo.
-  // Usa optional chaining: se o handler lançar uma exceção aqui, o
-  // expo-notifications não mostra NADA (nem o banner) — ver
-  // NotificationsHandler.js, o catch chama handleError em vez de mostrar.
   handleNotification: async (notification) => ({
     shouldShowBanner: true,
     shouldShowList: true,
@@ -34,14 +20,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Android 8+ ignora o campo "sound" do pedido se o canal usado não tiver som
-// configurado — canais não podem ser reconfigurados depois de criados, por
-// isso criamos um canal próprio (em vez de usar o "default" do Expo, que
-// pode já ter sido criado sem som numa instalação anterior).
-// Promise cacheada e aguardada em send() antes de agendar — criá-lo apenas
-// "fire-and-forget" ao carregar o módulo arriscava agendar notificações com
-// channelId ainda inexistente (canal não pronto), que o Android descarta em
-// silêncio sem mostrar nada.
+// Cria o canal de notificações do Android (obrigatório a partir do Android 8)
 let androidChannelPromise = null;
 function ensureAndroidChannel() {
   if (Platform.OS !== 'android') return Promise.resolve();
@@ -60,6 +39,7 @@ function ensureAndroidChannel() {
 
 let permissionRequested = false;
 
+// Verifica se já há permissão de notificações
 async function ensurePermission() {
   const { status } = await Notifications.getPermissionsAsync();
   if (status === 'granted') return true;
@@ -69,6 +49,7 @@ async function ensurePermission() {
   return newStatus === 'granted';
 }
 
+// Le as preferências de notificações guardadas no AsyncStorage
 async function getSettings() {
   try {
     const raw = await AsyncStorage.getItem(SETTINGS_KEY);
@@ -78,10 +59,12 @@ async function getSettings() {
   }
 }
 
+// Guarda as preferências de notificações no AsyncStorage
 async function saveSettings(settings) {
   await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
+// Envia uma notificação (se houver permissão)
 async function send(title, body, { sound } = {}) {
   const granted = await ensurePermission();
   if (!granted) return;
@@ -101,7 +84,7 @@ async function send(title, body, { sound } = {}) {
   }
 }
 
-/** Alerta de sEMG/IMU confirmado durante uma monitorização (ver MonitoringPage). */
+// Manda uma notificação dealerta
 async function notifyAlert(kind) {
   const settings = await getSettings();
   if (!settings.notifications) return;
@@ -114,7 +97,7 @@ async function notifyAlert(kind) {
   await send(title, body, { sound: settings.sound });
 }
 
-/** Estado do dispositivo — ex: módulo desligou-se inesperadamente a meio de uma sessão. */
+// Manda uma notificação sobre o estado do dispositivo
 async function notifyDevice(title, body) {
   const settings = await getSettings();
   if (!settings.device) return;

@@ -2,17 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../utils/shared-Styles';
 
-/**
- * Etiquetas do eixo X (tempo) desenhadas por baixo de um LineChart do
- * react-native-gifted-charts.
- *
- * A versão instalada da biblioteca não implementa `xAxisLabelTexts` para
- * gráficos de linha (só para barras/bubble) — passar essa prop não faz
- * nada. Por isso desenhamos a nossa própria fila de texto, posicionada com
- * os mesmos cálculos de espaçamento que o gráfico usa internamente
- * (initialSpacing/endSpacing + distribuição uniforme dos pontos), para as
- * etiquetas ficarem alinhadas com os pontos certos.
- */
+// Como a biblioteca de gráficos não permite customizar o eixo x, criamos um eixo x customizado para os gráficos (grafico EMG, Envelope e IMU)
+// É renderizado em baixo do gráfico, e cada label é posicionada de acordo com a largura do gráfico e a quantidade de labels
 export default function ChartTimeAxis({
   labels,
   chartWidth,
@@ -21,9 +12,11 @@ export default function ChartTimeAxis({
   endSpacing = 4,
   labelWidth = 32,
 }) {
+  // Garantir que a largura do gráfico seja pelo menos 0 para evitar problemas de renderização
   const n = labels?.length ?? 0;
   if (n === 0) return null;
 
+  // 
   const plotWidth = Math.max(chartWidth - initialSpacing - endSpacing, 0);
   const xStep = n > 1 ? plotWidth / (n - 1) : 0;
 

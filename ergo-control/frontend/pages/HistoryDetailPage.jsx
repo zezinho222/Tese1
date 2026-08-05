@@ -26,13 +26,10 @@ import ExcelIcon from '../assets/excel.png';
 import PdfIcon from '../assets/pdf.png';
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
-
-// Largura do gráfico = largura do ecrã menos o padding do ScrollView (20*2),
-// o padding interno dos cards (16*2) e a largura reservada para as etiquetas
-// do eixo Y (valores)
 const Y_AXIS_LABEL_WIDTH = 38;
 const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2 - Y_AXIS_LABEL_WIDTH;
 
+// Formatação de data e hora
 function formatDateOnly(isoStr) {
   if (!isoStr) return '—';
   const d = new Date(isoStr);
@@ -66,11 +63,13 @@ export default function HistoryDetailPage({ navigation, route }) {
   const [exportingCsv, setExportingCsv]   = useState(false);
   const [exportingPdf, setExportingPdf]   = useState(false);
 
+  // Carrega a sessão do histórico (via syncService) e guarda no estado local
+  // Se não encontrar, mostra erro
   const loadSession = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const sessions = await syncService.getMergedSessions(token); // ordenadas da mais recente para a mais antiga
+      const sessions = await syncService.getMergedSessions(token);
       const idx = sessions.findIndex((s) => s.localId === sessionId);
       if (idx === -1) {
         setError('Sessão não encontrada.');
@@ -119,23 +118,22 @@ export default function HistoryDetailPage({ navigation, route }) {
   const showEMG = session.sensorType === 'EMG' || session.sensorType === 'DUAL';
   const showIMU = session.sensorType === 'IMU' || session.sensorType === 'DUAL';
 
-  // emgData e imuData vêm em bruto da sessão (todas as amostras recolhidas,
-  // sem downsample) — usados tal-e-qual no export CSV. Para os gráficos em
-  // ecrã, que não precisam (nem aguentam bem) milhares de pontos, usam-se
-  // versões reduzidas só para desenhar a linha.
+
+  // valores do gráfico em ecrã (downsampled -> porque sem isto ia desenhar todos os pontos e assim agregas apennas alguns)
+  // usados só para desenhar a linha
   const emgData = Array.isArray(session.emgData) ? session.emgData : [];
   const imuData = Array.isArray(session.imuData) ? session.imuData : [];
   const emgChartData = syncService.downsampleArray(emgData);
   const imuChartData = syncService.downsampleArray(imuData);
 
-  // envelope já vem calculado da sessão (fração do MVC, 1.0 = 100%) — não
-  // precisa de downsample porque já é bem mais pequeno do que o sinal em bruto.
+  // envelope já vem calculado da sessão (1.0 = 100%), não
+  // precisa de downsample porque já é bem mais pequeno do que o sinal em bruto
   const envelope = Array.isArray(session.envelope) ? session.envelope : [];
   const envelopeParams = session.envelopeParams || null;
   const envelopePeak = envelope.length ? Math.max(...envelope) : 0;
   const envelopeMean = envelope.length ? envelope.reduce((sum, v) => sum + v, 0) / envelope.length : 0;
 
-  // ── Exportar CSV (resumo + valores dos gráficos, sem imagens) ───────────────
+  // Exportar CSV
   const handleExportCsv = async () => {
     if (exportingCsv) return;
     setExportingCsv(true);
@@ -170,7 +168,7 @@ export default function HistoryDetailPage({ navigation, route }) {
     }
   };
 
-  // ── Exportar PDF (relatório completo, incluindo os gráficos) ────────────────
+  // Exportar PDF
   const handleExportPdf = async () => {
     if (exportingPdf) return;
     setExportingPdf(true);
@@ -207,8 +205,8 @@ export default function HistoryDetailPage({ navigation, route }) {
     }
   };
 
-  // ── Gráfico de linha — sEMG (mesmo estilo do gráfico da Monitorização) ──────
-  // Eixo X = tempo (ao longo da duração real da sessão), eixo Y = valores.
+  // Gráfico sEMG 
+  // Eixo x = tempo e eixo y = valores do sEMG.
   const renderEmgLine = () => {
     if (!emgChartData.length) {
       return (
@@ -250,8 +248,8 @@ export default function HistoryDetailPage({ navigation, route }) {
     );
   };
 
-  // ── Gráfico de linha — Envelope RMS (mesmo estilo dos outros gráficos) ──────
-  // Eixo X = tempo (ao longo da duração real da sessão), eixo Y = % do MVC.
+  // Gráfico do Envelope RMS
+  // Eixo x = tempo e eixo Y = % do MVC.
   const renderEnvelopeLine = () => {
     if (!envelope.length) {
       return (
@@ -293,7 +291,8 @@ export default function HistoryDetailPage({ navigation, route }) {
     );
   };
 
-  // ── Gráfico de linha — IMU (Pitch, Roll) ────────────────────────────────────
+  // Gráfico IMU
+  // Eixo x = tempo e eixo Y = valores do Pitch e Roll.
   const renderImuLine = () => {
     if (!imuData.length) {
       return (
@@ -392,7 +391,7 @@ export default function HistoryDetailPage({ navigation, route }) {
           </View>
         </View>
 
-        {/* ── sEMG - Resumo da Sessão ── */}
+        {/* sEMG - Resumo da Sessão */}
         {showEMG && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <Text style={styles.graphTitle}>sEMG - Resumo da Sessão</Text>
@@ -402,7 +401,7 @@ export default function HistoryDetailPage({ navigation, route }) {
           </View>
         )}
 
-        {/* ── Envelope RMS - Resumo da Sessão ── */}
+        {/* Envelope RMS - Resumo da Sessão */}
         {showEMG && envelope.length > 0 && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <Text style={styles.graphTitle}>Envelope RMS - Resumo da Sessão</Text>
@@ -434,7 +433,7 @@ export default function HistoryDetailPage({ navigation, route }) {
           </View>
         )}
 
-        {/* ── IMU - Resumo da Sessão ── */}
+        {/* IMU - Resumo da Sessão */}
         {showIMU && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <Text style={styles.graphTitle}>IMU - Resumo da Sessão</Text>
@@ -454,7 +453,7 @@ export default function HistoryDetailPage({ navigation, route }) {
           </View>
         )}
 
-        {/* ── Exportar Dados ── */}
+        {/* Exportar Dados */}
         <Text style={styles.sectionTitle}>Exportar Dados</Text>
 
         <View style={styles.exportGroup}>
@@ -514,15 +513,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
   loadingWrap: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
   },
-
-  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -546,23 +542,17 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 50,
   },
-
-  /* ── Scroll ── */
   scroll: {
     paddingHorizontal: 20,
     paddingBottom: 32,
     gap: 14,
   },
-
-  /* ── Generic section card ── */
   sectionCard: {
     backgroundColor: colors.white,
     padding: 16,
     borderWidth: 1,
     gap: 10,
   },
-
-  /* ── RESUMO ── */
   sectionLabel: {
     fontSize: 12,
     fontWeight: '700',
@@ -589,8 +579,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.text.primary,
   },
-
-  /* ── Graph cards ── */
   graphTitle: {
     fontSize: 15,
     fontWeight: '700',
@@ -642,8 +630,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text.secondary,
   },
-
-  /* ── Export section ── */
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
@@ -696,8 +682,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: 2,
   },
-
-  /* ── Erro de exportação ── */
   errorBox: {
     backgroundColor: colors.redBackground,
     borderColor: colors.text.red + '30',

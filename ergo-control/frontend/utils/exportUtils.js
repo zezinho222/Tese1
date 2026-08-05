@@ -1,14 +1,3 @@
-/**
- * exportUtils.js
- * Geração do conteúdo dos exports da HistoryDetailPage — CSV (só valores,
- * sem imagens de gráfico) e PDF (relatório completo, incluindo os
- * gráficos). Os gráficos do PDF são desenhados como SVG diretamente a
- * partir dos valores guardados (emgData/imuData) em vez de tirar um
- * "screenshot" do gráfico no ecrã — assim não depende de nenhuma
- * biblioteca nativa extra (ex: react-native-view-shot) e o resultado é
- * sempre igual, independentemente do aparelho.
- */
-
 import { buildTimeAxisLabels } from './chartAxis';
 
 const CHART_COLORS = {
@@ -23,7 +12,7 @@ function csvEscape(value) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/** Reduz um array para no máximo maxPoints, só para desenhar o gráfico do PDF — o CSV usa sempre os dados em bruto. */
+// Reduz o número de pontos de um array mantendo a forma geral da curva.
 function downsampleForChart(arr, maxPoints = 200) {
   if (!Array.isArray(arr) || arr.length <= maxPoints) return arr || [];
   const step = arr.length / maxPoints;
@@ -34,7 +23,7 @@ function downsampleForChart(arr, maxPoints = 200) {
   return result;
 }
 
-/** CSV com o resumo da sessão + os valores brutos dos gráficos (sem imagens). */
+// Gera o conteúdo CSV de uma sessão
 export function buildSessionCsv({
   sessionNumber, sensorLabel, dateStr, timeStr, durationSec, alertCount, mvc, emgData, imuData,
   envelope, envelopeParams,
@@ -87,12 +76,7 @@ export function buildSessionCsv({
   return lines.join('\n');
 }
 
-/**
- * Desenha um gráfico de linha em SVG a partir de uma ou mais séries de
- * valores, com eixo X (tempo, ver utils/chartAxis.js — a mesma lógica usada
- * nos gráficos ao vivo no ecrã) e eixo Y (valores, com grelha e etiquetas
- * numéricas), para o PDF mostrar exatamente a mesma informação que o ecrã.
- */
+// Fazer um gráfico SVG de linha
 function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = {}) {
   const padLeft = 44, padRight = 12, padTop = 12, padBottom = 28;
   const allValues = series.flatMap((s) => s.data).filter((v) => typeof v === 'number' && !Number.isNaN(v));
@@ -124,7 +108,7 @@ function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = 
     })
     .join('');
 
-  // Eixo Y — grelha horizontal + valor numérico em cada secção
+  // Eixo Y
   const ySections = 4;
   let yGridLines = '';
   let yLabels = '';
@@ -135,7 +119,7 @@ function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = 
     yLabels += `<text x="${(padLeft - 6).toFixed(2)}" y="${(y + 3).toFixed(2)}" font-size="9" fill="#6B7280" text-anchor="end">${v.toFixed(1)}</text>`;
   }
 
-  // Eixo X — etiquetas de tempo (mesma lógica dos gráficos no ecrã)
+  // Eixo X
   let xLabels = '';
   buildTimeAxisLabels(n, totalSeconds, 5).forEach((label, i) => {
     if (!label) return;
@@ -151,7 +135,8 @@ function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = 
   return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="background:#F9FAFB;border-radius:10px;border:1px solid #E5E7EB;">${yGridLines}${axisLines}${polylines}${yLabels}${xLabels}</svg>`;
 }
 
-/** HTML do relatório completo (resumo + gráficos) a converter em PDF via expo-print. */
+
+// Gera o conteúdo HTML de um PDF de sessão
 export function buildSessionPdfHtml({
   sessionNumber, sensorLabel, dateStr, timeStr, durationStr, durationSec, alertCount, mvc,
   showEMG, showIMU, emgData, imuData, envelope, envelopeParams,
@@ -159,9 +144,6 @@ export function buildSessionPdfHtml({
   const emgChart = showEMG
     ? svgLineChart([{ data: downsampleForChart(emgData), color: CHART_COLORS.emg }], { totalSeconds: durationSec })
     : '';
-  // Reduz UMA vez e usa a mesma redução para Pitch e Roll, para que as duas
-  // linhas fiquem alinhadas no tempo (reduzir cada uma em separado daria os
-  // mesmos índices, mas assim fica explícito e evita percorrer o array 2×).
   const imuChartData = downsampleForChart(imuData || []);
   const imuChart = showIMU
     ? svgLineChart([
@@ -170,8 +152,6 @@ export function buildSessionPdfHtml({
       ], { totalSeconds: durationSec })
     : '';
 
-  // O envelope já vem calculado (fração do MVC) — não precisa de downsample,
-  // é bem mais pequeno do que o sinal em bruto.
   const hasEnvelope = showEMG && Array.isArray(envelope) && envelope.length > 0;
   const envelopeChart = hasEnvelope
     ? svgLineChart([{ data: envelope.map((v) => v * 100), color: CHART_COLORS.envelope }], { totalSeconds: durationSec })

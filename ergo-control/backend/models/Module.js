@@ -1,32 +1,38 @@
 const mongoose = require('mongoose');
 
+// Esquema do módulo na base de dados
 const moduleSchema = new mongoose.Schema(
   {
+    // Utilizador
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
     },
+    // Nome do módulo
     name: {
       type: String,
       required: [true, 'O nome do módulo é obrigatório'],
       trim: true,
     },
-    // Tipo base do módulo (hardware)
+    // Tipo do módulo
     type: {
       type: String,
       enum: ['sEMG', 'IMU', 'DUAL'],
       default: 'DUAL',
     },
+    // Endereço IP do módulo
     ip: {
       type: String,
       required: [true, 'O endereço IP é obrigatório'],
       trim: true,
     },
+    // Porta do módulo
     port: {
       type: Number,
       default: 80,
     },
+    // Nível de bateria do módulo (0-100)
     battery: {
       type: Number,
       default: null,
@@ -67,10 +73,12 @@ const moduleSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    // Estado de conexão do módulo
     connected: {
       type: Boolean,
       default: true,
     },
+    // Última vez que o módulo esteve online
     lastSeen: {
       type: Date,
       default: Date.now,

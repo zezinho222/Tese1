@@ -1,12 +1,4 @@
-/**
- * chartAxis.js
- * Helpers puros (sem dependências de UI) para gerar as etiquetas do eixo do
- * tempo dos gráficos de sEMG/IMU — usados tanto pelos gráficos ao vivo
- * (react-native-gifted-charts, em MonitoringPage/HistoryDetailPage) como
- * pelo gráfico em SVG do relatório PDF (utils/exportUtils.js), para as duas
- * versões mostrarem sempre os mesmos valores.
- */
-
+// Formata um valor em segundos para exibição no eixo do gráfico
 export function formatAxisSeconds(sec) {
   const s = Math.max(0, Math.round(sec || 0));
   if (s < 60) return `${s}s`;
@@ -15,13 +7,7 @@ export function formatAxisSeconds(sec) {
   return rem > 0 ? `${m}m${rem.toString().padStart(2, '0')}s` : `${m}m`;
 }
 
-/**
- * Devolve um array com o mesmo tamanho de `pointCount`, com string vazia em
- * quase todas as posições exceto em `tickCount` pontos espaçados
- * uniformemente, onde coloca o tempo aproximado (formatado) desse ponto —
- * assume amostragem uniforme ao longo de `totalSeconds` (do primeiro ao
- * último ponto).
- */
+// Gera rótulos de eixo para um gráfico de tempo, dado o número de pontos, a duração total em segundos e o número desejado de ticks
 export function buildTimeAxisLabels(pointCount, totalSeconds, tickCount = 5) {
   if (!pointCount || pointCount <= 0) return [];
   const labels = new Array(pointCount).fill('');
@@ -39,13 +25,7 @@ export function buildTimeAxisLabels(pointCount, totalSeconds, tickCount = 5) {
   return labels;
 }
 
-/**
- * Estima quantos segundos representa a janela visível (últimos `visibleCount`
- * pontos) de um buffer que já tem `totalSamples` amostras acumuladas ao fim
- * de `elapsedSec` segundos de monitorização — usado no gráfico ao vivo, que
- * mostra só a "cauda" do buffer, para saber a que intervalo de tempo (relativo,
- * "há quantos segundos") essa cauda corresponde.
- */
+// Estima a duração em segundos de uma janela de dados visível, dado o número total de amostras, o número de amostras visíveis e o tempo decorrido desde o início
 export function estimateWindowSeconds(totalSamples, visibleCount, elapsedSec) {
   if (!totalSamples || !elapsedSec || totalSamples <= 0 || elapsedSec <= 0) return 0;
   const rate = totalSamples / elapsedSec; // amostras por segundo

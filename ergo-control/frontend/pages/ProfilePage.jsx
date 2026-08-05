@@ -38,6 +38,7 @@ const settings = [
   },
 ];
 
+// Página de Perfil
 export default function ProfilePage({ navigation }) {
   const { user, token, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -48,6 +49,7 @@ export default function ProfilePage({ navigation }) {
     { label: 'Alertas', value: '—' },
   ]);
 
+  // Carrega estatísticas de sessões e alertas do utilizador
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
@@ -60,7 +62,6 @@ export default function ProfilePage({ navigation }) {
         { label: 'Alertas', value: String(totalAlerts) },
       ]);
     } catch {
-      // sem internet real e sem dados locais — mantém os valores atuais
     } finally {
       setStatsLoading(false);
     }
@@ -175,11 +176,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: 20,
   },
-
   scroll: {
     paddingBottom: 32,
   },
-
   avatarSection: {
     alignItems: 'center',
     marginBottom: 20,
@@ -206,7 +205,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     textAlign: 'center',
   },
-
   statsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -234,7 +232,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
@@ -243,7 +240,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-
   settingsGroup: {
     gap: 12,
     marginBottom: 28,
@@ -273,14 +269,12 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: 3,
   },
-
   logoutBtn: {
     paddingVertical: 16,
     borderRadius: 18,
     marginHorizontal: 0,
     marginTop: 0,
   },
-
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -288,7 +282,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 32,
   },
-
   modalCard: {
     width: '100%',
     backgroundColor: colors.white,

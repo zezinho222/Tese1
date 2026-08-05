@@ -19,6 +19,7 @@ import syncService from '../syncService';
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
 const SENSOR_ICONS  = { EMG: '⚡', IMU: '🧭', DUAL: '⚡🧭' };
 
+// Formatação de data e hora
 function formatDuration(sec) {
   if (!sec) return '0m 00s';
   const h = Math.floor(sec / 3600);
@@ -51,15 +52,12 @@ export default function HistoryPage({ navigation }) {
   const [sessionToDelete, setSessionToDelete] = useState(null); // localId da sessão a confirmar apagar
   const [deleting,   setDeleting]   = useState(false);
 
-  // ── Carregar sessões (local + merge com backend quando há internet) ───────
+  // Carregar sessões
   const loadSessions = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError('');
     try {
-      // getMergedSessions já trata da sincronização (envio + receção,
-      // serializado) antes de ler o local — não chamar trySyncAll à parte
-      // aqui, para não correr duas sincronizações ao mesmo tempo.
       const isOnline = await syncService.hasInternet();
       setOnline(isOnline);
       const merged = await syncService.getMergedSessions(token);
@@ -74,7 +72,7 @@ export default function HistoryPage({ navigation }) {
 
   useFocusEffect(useCallback(() => { loadSessions(); }, []));
 
-  // ── Apagar sessão (local + backend) ────────────────────────────────────────
+  // Apagar sessão
   const handleDeleteSession = async () => {
     if (!sessionToDelete) return;
     setDeleting(true);
@@ -89,10 +87,9 @@ export default function HistoryPage({ navigation }) {
     }
   };
 
-  // ── Todas as sessões ────────────────────────────────────────────────────────
+  // Todas as sessões 
   const recentSessions = sessions;
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -227,7 +224,6 @@ export default function HistoryPage({ navigation }) {
         </View>
       )}*/}
 
-      {/* ── Modal: Confirmar apagar sessão ── */}
       <Modal
         visible={!!sessionToDelete}
         transparent
@@ -269,8 +265,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
-  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -292,14 +286,11 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 50,
   },
-
   loadingWrap: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  /* ── Scroll ── */
   scroll: {
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -311,8 +302,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginBottom: -4,
   },
-
-  /* ── Erro ── */
   errorBox: {
     backgroundColor: colors.redBackground,
     borderColor: colors.text.red + '30',
@@ -322,8 +311,6 @@ const styles = StyleSheet.create({
     fontStyle: 'normal',
     textAlign: 'center',
   },
-
-  /* ── Estado vazio ── */
   emptyCard: {
     backgroundColor: colors.white,
     padding: 32,
@@ -347,8 +334,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-
-  /* ── Cartão de sessão ── */
   sessionCard: {
     backgroundColor: colors.white,
     padding: 14,
@@ -401,8 +386,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text.red,
   },
-
-  /* ── Estado de sincronização ── */
   syncBadge: {
     backgroundColor: colors.text.yellow + '20',
     borderRadius: 8,
@@ -415,8 +398,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text.yellow,
   },
-
-  /* ── Estatísticas ── */
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,7 +427,6 @@ const styles = StyleSheet.create({
     height: 32,
     backgroundColor: colors.border,
   },
-
   detailsBtn: {
     alignSelf: 'flex-end',
   },
@@ -455,8 +435,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
   },
-
-  /* ── Rodapé ── */
   bottomWrap: {
     paddingHorizontal: 20,
     paddingVertical: 14,
@@ -493,8 +471,6 @@ const styles = StyleSheet.create({
     right: 16,
     lineHeight: 36,
   },
-
-  /* ── Modal: apagar sessão ── */
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

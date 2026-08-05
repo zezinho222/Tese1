@@ -14,13 +14,15 @@ import LiveLineChart from '../components/LiveLineChart';
 import { colors } from '../utils/shared-Styles';
 import moduleService from '../moduleService';
 
-const DISPLAY_POINTS = 40;
-const REFRESH_MS     = 1000;
-const Y_AXIS_LABEL_WIDTH = 42;
+
+const DISPLAY_POINTS = 40; // número de pontos que mostra no gráfico 
+const REFRESH_MS     = 1000; // intervalo de atualização do gráfico (ms)
+const Y_AXIS_LABEL_WIDTH = 42; // largura do eixo Y do gráfico 
 const IMU_Y_AXIS_MAX = 100; // eixo Y do gráfico IMU fixo em [-100, 100]
 
 const IMU_AXIS_COLORS = [colors.primary, colors.secondary]; // Pitch, Roll
 
+// Página de visualização do gráfico em fullscreen
 export default function ChartFullscreenPage({ navigation, route }) {
   const { type } = route.params; // 'EMG' | 'IMU'
   const { width, height } = useWindowDimensions();
@@ -29,7 +31,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
   const [imuPoints, setImuPoints] = useState([]);
   const intervalRef = useRef(null);
 
-  // ── Força o ecrã em modo horizontal enquanto esta página está aberta ──────
+  // Força o ecrã em modo horizontal
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
     return () => {
@@ -37,7 +39,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
     };
   }, []);
 
-  // ── Atualização periódica dos dados — lê diretamente do moduleService ─────
+  // Atualização periódica dos dados
   useEffect(() => {
     intervalRef.current = setInterval(() => {
       const { emgBuffer, imuBuffer } = moduleService.getRecentBuffers(DISPLAY_POINTS);
@@ -151,8 +153,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
-  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -171,8 +171,6 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 42,
   },
-
-  /* ── Gráfico ── */
   chartWrap: {
     flex: 1,
     justifyContent: 'center',
@@ -192,8 +190,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: colors.text.secondary,
   },
-
-  /* ── Legenda (IMU) ── */
   legendRow: {
     flexDirection: 'row',
     justifyContent: 'center',

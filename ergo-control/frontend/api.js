@@ -2,11 +2,12 @@ const API_URL = 'https://tese1.onrender.com';
 
 // Chamado sempre que o backend rejeita o token (expirado/inválido), para a
 // app poder fazer logout e pedir novo login em vez de falhar em silêncio
-// para sempre. Registado pelo AuthContext.
+// para sempre
 let onUnauthorized = null;
 const setOnUnauthorized = (fn) => { onUnauthorized = fn; };
 
-// Helper para pedidos autenticados
+// Faz um pedido autenticado à API (com token no header) e devolve o JSON
+// se receber 401, chama o callback de logout
 const authFetch = async (path, token, options = {}) => {
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -20,8 +21,11 @@ const authFetch = async (path, token, options = {}) => {
   return res.json();
 };
 
+// API de backend
+// Toda a app faz pedidos a esta API, em vez de espalhar fetch() por todo o lado
+// Assim, se a API mudar de URL ou de formato, só é preciso alterar aqui
 export const api = {
-  // ── Auth ──────────────────────────────────────────────────────────────
+  // Autenticação
   register: async ({ name, email, phone, password }) => {
     const res = await fetch(`${API_URL}/api/auth/register`, {
       method: 'POST',
@@ -49,7 +53,7 @@ export const api = {
     return res.json();
   },
 
-  // ── User Profile ──────────────────────────────────────────────────────
+  // Perfil utilizador
   getProfile: async (token) =>
     authFetch('/api/user/me', token),
 
@@ -71,7 +75,7 @@ export const api = {
       body: JSON.stringify({}),
     }),
 
-  // ── Modules ──────────────────────────────────────────────────────────
+  // Modulos
   getModules: async (token) =>
     authFetch('/api/modules', token),
 
@@ -95,7 +99,7 @@ export const api = {
       body: JSON.stringify({ sensor, mvc }),
     }),
 
-  // ── Sessions ─────────────────────────────────────────────────────────
+  // Sessões
   getSessions: async (token) =>
     authFetch('/api/sessions', token),
 

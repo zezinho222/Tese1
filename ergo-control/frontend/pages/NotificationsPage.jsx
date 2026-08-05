@@ -31,11 +31,12 @@ const SECTIONS = [
   },
 ];
 
+// Página de Notificações
 export default function NotificationsPage({ navigation }) {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Carrega as preferências guardadas (ou os valores por omissão, na primeira vez).
+  // Carrega as preferências guardadas
   useEffect(() => {
     notificationService.getSettings().then(setSettings);
   }, []);
@@ -45,9 +46,6 @@ export default function NotificationsPage({ navigation }) {
     const next = { ...settings, [id]: !settings[id] };
     setSettings(next);
 
-    // Se o utilizador está a ligar as notificações, pede logo a permissão
-    // ao sistema — se recusar, o toggle fica ligado na app mas nenhuma
-    // notificação vai realmente aparecer (comportamento normal do SO).
     if (id === 'notifications' && next.notifications) {
       await notificationService.ensurePermission();
     }
@@ -138,8 +136,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
-  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -163,31 +159,23 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 50,
   },
-
-  /* ── Scroll ── */
   scroll: {
     paddingHorizontal: 20,
     paddingBottom: 16,
     gap: 12,
   },
-
-  /* ── Section label ── */
   sectionLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.text.secondary,
     marginBottom: 6,
   },
-
-  /* ── Group card ── */
   groupCard: {
     backgroundColor: colors.white,
     borderWidth: 0,
     padding: 0,
     overflow: 'hidden',
   },
-
-  /* ── Setting row ── */
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,15 +197,11 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: 2,
   },
-
-  /* ── Divider ── */
   divider: {
     height: 1,
     backgroundColor: colors.border,
     marginHorizontal: 16,
   },
-
-  /* ── Bottom button ── */
   bottomWrap: {
     paddingHorizontal: 20,
     paddingVertical: 14,

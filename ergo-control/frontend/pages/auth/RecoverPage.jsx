@@ -13,14 +13,17 @@ import {
 import { colors, sharedStyles } from '../../utils/shared-Styles';
 import { api } from '../../api';
 
+// Página de recuperação de password
 export default function RecoverPage({ navigation }) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
 
+  // Valida o email se tiver @
   const isValid = email.includes('@');
 
+  // Função para enviar o pedido de recuperação de password
   const handleSend = async () => {
   if (!isValid) return;
   setLoading(true);
@@ -41,7 +44,7 @@ export default function RecoverPage({ navigation }) {
   }
 };
 
-  // ── Ecrã de confirmação após envio ──
+  // Ecrã de confirmação após envio
   if (sent) {
     return (
       <SafeAreaView style={styles.container}>
@@ -71,7 +74,7 @@ export default function RecoverPage({ navigation }) {
     );
   }
 
-  // ── Ecrã principal ──
+  // Ecrã principal
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView

@@ -1,9 +1,4 @@
-/**
- * RMS Envelope com janela deslizante
- * @param {number[]} signal - Sinal EMG raw
- * @param {number} windowSize - Tamanho da janela (ex: 50 amostras a 1000Hz = 50ms)
- * @returns {number[]} - Envelope RMS
- */
+// Calcula o envelope RMS com janela deslizante
 export function rmsEnvelope(signal, windowSize) {
   const result = [];
   for (let i = 0; i <= signal.length - windowSize; i++) {
@@ -14,12 +9,7 @@ export function rmsEnvelope(signal, windowSize) {
   return result;
 }
 
-/**
- * Calcula o MVC a partir do envelope RMS
- * @param {number[]} signal - Sinal EMG raw
- * @param {number} windowSize - Tamanho da janela (default: 50)
- * @returns {{ mvc: number, envelope: number[] }}
- */
+// Calcula o MVC e o envelope RMS
 export function calculateMVC(signal, windowSize = 50) {
   if (!signal || signal.length < windowSize) {
     return { mvc: 0, envelope: [] };
@@ -29,51 +19,19 @@ export function calculateMVC(signal, windowSize = 50) {
   return { mvc, envelope };
 }
 
-/**
- * Normaliza um valor EMG pelo MVC
- * @param {number} value - Valor EMG raw
- * @param {number} mvc - Valor MVC de referência
- * @returns {number} - Percentagem de 0 a 100 (clampada)
- */
+// Normaliza um valor pelo MVC, limitando entre 0 e 100%
 export function normalizeByMVC(value, mvc) {
   if (!mvc || mvc === 0) return 0;
   return Math.min(100, Math.max(0, (value / mvc) * 100));
 }
 
-// ─── Envelope RMS da sessão (janela + overlap escolhidos pelo utilizador) ─────
+//Envelope RMS da sessão (janela + overlap escolhidos pelo utilizador)
 
-/** Valores por omissão da janela e do overlap, em milissegundos. */
+// Valores default da janela e do overlap, em ms.
 export const DEFAULT_WINDOW_MS  = 125;
 export const DEFAULT_OVERLAP_MS = 6.25;
 
-/**
- * Envelope RMS de uma sessão completa, com janela deslizante e salto (hop).
- *
- * Equivalente ao cálculo em MATLAB:
- *   w   = round(w_rms * fs)
- *   hop = round((w_rms - o_rms) * fs)
- *   idx = 1
- *   while (idx + w - 1) <= N
- *       segment  = norm_signal(idx : idx + w - 1)
- *       rms_vals(end+1) = sqrt(mean(segment.^2))
- *       idx = idx + hop
- *   end
- *
- * O sinal é primeiro normalizado pelo MVC (norm_signal = raw / mvc), por isso
- * o envelope vem já em fração do MVC (1.0 = 100% MVC).
- *
- * @param {number[]} rawSignal  - amostras EMG em bruto, tal como recolhidas
- * @param {object}   opts
- * @param {number}   opts.mvc        - valor de MVC da calibração
- * @param {number}   opts.fs         - frequência de amostragem em Hz
- * @param {number}   opts.windowMs   - largura da janela em ms (default 125)
- * @param {number}   opts.overlapMs  - overlap em ms (default 6.25)
- * @returns {{
- *   envelope: number[], windowSamples: number, hopSamples: number,
- *   fs: number, windowMs: number, overlapMs: number,
- *   peak: number, mean: number
- * }}
- */
+// Envelope RMS de uma sessão completa, com janela deslizante e salto (hop).
 export function computeRmsEnvelope(rawSignal, {
   mvc,
   fs,
@@ -89,15 +47,15 @@ export function computeRmsEnvelope(rawSignal, {
   if (!fs || fs <= 0) return empty;
 
   // nº de amostras da janela = largura da janela (s) × freq
-  const w = Math.round((windowMs / 1000) * fs);
+  const w = Math.round((windowMs / 1000) * fs); // divido por 1000 para converter ms em s
   // nº de amostras do salto = (largura da janela − overlap) (s) × freq
-  const hop = Math.round(((windowMs - overlapMs) / 1000) * fs);
+  const hop = Math.round(((windowMs - overlapMs) / 1000) * fs); // divido por 1000 para converter ms em s
 
   if (w < 1 || hop < 1 || rawSignal.length < w) {
     return { ...empty, windowSamples: w, hopSamples: hop };
   }
 
-  // normalizar sinal = sinal raw / mvc  (sem MVC válido fica em bruto)
+  // normalizar sinal = sinal raw / mvc
   const scale = mvc && mvc !== 0 ? 1 / mvc : 1;
 
   const N = rawSignal.length;

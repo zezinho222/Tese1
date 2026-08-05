@@ -2,19 +2,9 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path, Line } from 'react-native-svg';
 
-/**
- * Gráfico de linha simples e sem estado interno, para dados que mudam em
- * tempo real (ex: EMG/IMU durante a monitorização).
- *
- * Foi criado para substituir o LineChart do react-native-gifted-charts
- * nesse cenário: a biblioteca acumula estado interno a cada atualização de
- * `data`/`dataSet` e, ao fim de algum tempo de monitorização contínua
- * (~1 min a 1 atualização/seg), rebenta com "Maximum update depth
- * exceeded" — já tinha acontecido antes a 300ms (ver monitoringService.js)
- * e voltou a acontecer mesmo a 1seg/atualização. Este componente deriva o
- * traçado inteiramente das props em cada render (sem useEffect/useState
- * interno a sincronizar dados), pelo que não há estado a acumular.
- */
+
+// Gráfico de linha simples e sem estado interno, para dados que mudam em tempo real (ex: EMG/IMU durante a monitorização)
+
 export default function LiveLineChart({
   series,
   width,
@@ -29,6 +19,7 @@ export default function LiveLineChart({
   axisTextStyle,
   yAxisLabelWidth = 0,
 }) {
+  // Garantir que a largura do gráfico seja pelo menos 1 para evitar problemas de renderização
   const plotWidth = Math.max(width - (showAxis ? yAxisLabelWidth : 0), 1);
 
   const { min, max } = useMemo(() => {
@@ -109,6 +100,7 @@ export default function LiveLineChart({
   );
 }
 
+// Função para construir um caminho suave entre os pontos de dados
 function buildSmoothPath(data, width, height, min, range) {
   const n = data.length;
   if (n === 0) return '';
@@ -123,8 +115,6 @@ function buildSmoothPath(data, width, height, min, range) {
     return `M${x},${y} L${x},${y}`;
   }
 
-  // Suavização por ponto médio: uma curva quadrática entre cada par de
-  // pontos, sem depender de nenhuma biblioteca externa de bezier.
   let d = `M${points[0][0]},${points[0][1]}`;
   for (let i = 0; i < points.length - 1; i++) {
     const [x0, y0] = points[i];

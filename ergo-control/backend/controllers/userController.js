@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const User = require('../models/User');
 
-// Função auxiliar para enviar email (já existe no authController, reutilizamos)
+// Função auxiliar para enviar email
 const sendEmail = async ({ to, subject, html }) => {
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
@@ -23,7 +23,7 @@ const sendEmail = async ({ to, subject, html }) => {
   }
 };
 
-// ─── GET /api/user/me ──────────────────────────────────────────────────────
+// GET /api/user/me 
 // Retorna dados do perfil do utilizador autenticado
 const getProfile = async (req, res) => {
   res.status(200).json({
@@ -37,8 +37,8 @@ const getProfile = async (req, res) => {
   });
 };
 
-// ─── PUT /api/user/profile ─────────────────────────────────────────────────
-// Atualiza nome e telemóvel (sem verificação por email)
+// PUT /api/user/profile
+// Atualiza dados do perfil do utilizador 
 const updateProfile = async (req, res) => {
   try {
     const { name, phone } = req.body;
@@ -75,7 +75,7 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// ─── POST /api/user/request-email-change ──────────────────────────────────
+// POST /api/user/request-email-change 
 // Envia email de verificação para alterar o email
 const requestEmailChange = async (req, res) => {
   try {
@@ -137,7 +137,7 @@ const requestEmailChange = async (req, res) => {
   }
 };
 
-// ─── POST /api/user/verify-email-change/:token ────────────────────────────
+// POST /api/user/verify-email-change/:token
 // Confirma a alteração de email via token
 const verifyEmailChange = async (req, res) => {
   try {
@@ -170,7 +170,7 @@ const verifyEmailChange = async (req, res) => {
   }
 };
 
-// ─── POST /api/user/request-password-change ───────────────────────────────
+// POST /api/user/request-password-change
 // Envia email de verificação para alterar a password
 const requestPasswordChange = async (req, res) => {
   try {
@@ -217,8 +217,8 @@ const requestPasswordChange = async (req, res) => {
   }
 };
 
-// ─── POST /api/user/verify-password-change/:token ─────────────────────────
-// Confirma a alteração de password via token (página web)
+// POST /api/user/verify-password-change/:token
+// Confirma a alteração de password via token
 const verifyPasswordChange = async (req, res) => {
   try {
     const { token } = req.params;

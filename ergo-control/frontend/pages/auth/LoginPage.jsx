@@ -16,6 +16,7 @@ import { colors, sharedStyles } from '../../utils/shared-Styles';
 import { api } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 
+// Página de login
 export default function LoginPage({ navigation }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
@@ -23,8 +24,10 @@ export default function LoginPage({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Verificar se os campos estão preenchidos
   const isValid = email.length > 0 && password.length > 0;
 
+  // Função para lidar com o login
   const handleLogin = async () => {
   if (!isValid) return;
   setLoading(true);

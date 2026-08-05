@@ -1,13 +1,13 @@
 const Module = require('../models/Module');
 
-// sensorSelection usa 'EMG', mas o campo `type` (tipo base do hardware) usa 'sEMG'
 const SENSOR_TO_TYPE = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'DUAL' };
 
 const MODULE_IP   = '192.168.4.1';
 const MODULE_PORT = 80;
 const SCAN_TIMEOUT = 5000; // ms
 
-// ─── GET /api/modules ─────────────────────────────────────────────────────────
+// GET /api/modules
+// Listar todos os módulos do utilizador autenticado 
 const getModules = async (req, res) => {
   try {
     const modules = await Module.find({ user: req.user._id }).sort({ createdAt: -1 });
@@ -18,7 +18,8 @@ const getModules = async (req, res) => {
   }
 };
 
-// ─── POST /api/modules ────────────────────────────────────────────────────────
+// POST /api/modules
+// Adicionar um novo módulo ou atualizar se já existir com o mesmo IP
 const addModule = async (req, res) => {
   try {
     const {
@@ -87,7 +88,8 @@ const addModule = async (req, res) => {
   }
 };
 
-// ─── DELETE /api/modules/:id ──────────────────────────────────────────────────
+// DELETE /api/modules/:id
+// Remover um módulo 
 const removeModule = async (req, res) => {
   try {
     const module = await Module.findOne({ _id: req.params.id, user: req.user._id });
@@ -102,7 +104,7 @@ const removeModule = async (req, res) => {
   }
 };
 
-// ─── GET /api/modules/scan ────────────────────────────────────────────────────
+// GET /api/modules/scan
 // O scan real é feito diretamente pelo telemóvel (moduleService.isModuleReachable).
 // Este endpoint devolve o IP fixo do módulo para o backend ter registo.
 const scanModules = async (req, res) => {
@@ -125,7 +127,8 @@ const scanModules = async (req, res) => {
   }
 };
 
-// ─── PATCH /api/modules/:id/calibration ──────────────────────────────────────
+// PATCH /api/modules/:id/calibration
+// Atualizar estado de calibração do módulo
 const updateCalibration = async (req, res) => {
   try {
     const module = await Module.findOne({ _id: req.params.id, user: req.user._id });
@@ -133,7 +136,7 @@ const updateCalibration = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Módulo não encontrado.' });
     }
 
-    const { sensor, mvc } = req.body; // sensor: 'sEMG' | 'IMU'
+    const { sensor, mvc } = req.body;
 
     if (sensor === 'sEMG') {
       module.calibrated.sEMG = true;

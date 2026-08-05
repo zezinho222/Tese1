@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../api';
 
+// Estado global de autenticação (user/token)
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
@@ -24,7 +25,7 @@ export function AuthProvider({ children }) {
 
   // Se o backend rejeitar o token (expirado/inválido) em qualquer pedido,
   // faz logout automático — sem isto, a sincronização falhava para sempre
-  // em silêncio, sem nunca pedir novo login.
+  // em silêncio, sem nunca pedir novo login
   useEffect(() => {
     api.setOnUnauthorized(() => logout());
   }, []);

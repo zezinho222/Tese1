@@ -31,7 +31,8 @@ const sendEmail = async ({ to, subject, html }) => {
   }
 };
 
-// ─── POST /api/auth/register ───────────────────────────────────────────────
+// POST /api/auth/register 
+// Registar um novo utilizador
 const register = async (req, res) => {
   try {
     const { name, email, phone, password } = req.body;
@@ -91,7 +92,8 @@ const register = async (req, res) => {
   }
 };
 
-// ─── POST /api/auth/login ──────────────────────────────────────────────────
+// POST /api/auth/login
+// Autenticar utilizador e gerar token
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -104,7 +106,7 @@ const login = async (req, res) => {
       });
     }
 
-    // Buscar utilizador com a password (select: false no model)
+    // Buscar utilizador com a password
     const user = await User.findOne({
       email: email.toLowerCase(),
     }).select('+password');
@@ -148,7 +150,8 @@ const login = async (req, res) => {
   }
 };
 
-// ─── POST /api/auth/forgot-password ───────────────────────────────────────
+// POST /api/auth/forgot-password
+// Enviar email para redefinir password
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -182,7 +185,7 @@ const forgotPassword = async (req, res) => {
     user.passwordResetExpires = Date.now() + 15 * 60 * 1000;
     await user.save({ validateBeforeSave: false });
 
-    // Link de reset (aponta para o frontend/deep link da app)
+    // Link de reset
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
 
     try {
@@ -233,7 +236,8 @@ const forgotPassword = async (req, res) => {
   }
 };
 
-// ─── POST /api/auth/reset-password/:token ─────────────────────────────────
+// POST /api/auth/reset-password/:token
+// Redefinir password usando token enviado por email
 const resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
@@ -284,7 +288,7 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// ─── GET /api/auth/me ──────────────────────────────────────────────────────
+// GET /api/auth/me
 // Rota protegida - retorna dados do utilizador autenticado
 const getMe = async (req, res) => {
   res.status(200).json({

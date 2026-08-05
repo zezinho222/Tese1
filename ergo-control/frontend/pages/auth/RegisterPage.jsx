@@ -40,6 +40,7 @@ const Field = ({ field, placeholder, secure, keyboard, form, setForm, errors }) 
   );
 };
 
+// Página de registo
 export default function RegisterPage({ navigation }) {
   const [form, setForm] = useState({
     name: '',
@@ -51,6 +52,7 @@ export default function RegisterPage({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
+  // Função para validar os campos do formulário
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = 'Nome obrigatório';
@@ -61,6 +63,7 @@ export default function RegisterPage({ navigation }) {
     return Object.keys(e).length === 0;
   };
 
+  // Verifica se todos os campos são válidos
   const isValid =
     form.name.trim().length > 0 &&
     form.email.includes('@') &&
@@ -103,7 +106,6 @@ export default function RegisterPage({ navigation }) {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ✅ Seta mais grossa usando Text com peso bold */}
           <TouchableOpacity
             style={sharedStyles.backButton}
             onPress={() => navigation.goBack()}
@@ -126,7 +128,7 @@ export default function RegisterPage({ navigation }) {
             <Field field="password" placeholder="Password (mínimo 8 caracteres)" secure {...fieldProps} />
             <Field field="confirmPassword" placeholder="Confirmar Password" secure {...fieldProps} />
 
-            {/* ✅ Botão azul quando válido, cinzento quando não */}
+            {/* Botão azul quando válido, botão cinzento quando não esta valido */}
             <TouchableOpacity
               style={[
                 sharedStyles.primaryButton,

@@ -1,7 +1,8 @@
 const Session = require('../models/Session');
 const Module = require('../models/Module');
 
-// ─── GET /api/sessions ────────────────────────────────────────────────────────
+// GET /api/sessions
+// Listar todas as sessões do utilizador autenticado
 const getSessions = async (req, res) => {
   try {
     const sessions = await Session.find({ user: req.user._id })
@@ -14,7 +15,8 @@ const getSessions = async (req, res) => {
   }
 };
 
-// ─── GET /api/sessions/:id ────────────────────────────────────────────────────
+// GET /api/sessions/:id
+// Obter detalhes de uma sessão específica
 const getSession = async (req, res) => {
   try {
     const session = await Session.findOne({ _id: req.params.id, user: req.user._id });
@@ -28,7 +30,8 @@ const getSession = async (req, res) => {
   }
 };
 
-// ─── POST /api/sessions ───────────────────────────────────────────────────────
+// POST /api/sessions
+// Criar uma nova sessão
 const createSession = async (req, res) => {
   try {
     const { sensorType, startTime, endTime, duration, mvc, alertCount, notes, module } = req.body;
@@ -47,8 +50,6 @@ const createSession = async (req, res) => {
       });
     }
 
-    // Só associa o módulo se ele existir mesmo e pertencer a este
-    // utilizador — evita ligar a sessão a um módulo de outra conta.
     let moduleId = null;
     let moduleName = null;
     if (module) {
@@ -80,7 +81,8 @@ const createSession = async (req, res) => {
   }
 };
 
-// ─── PATCH /api/sessions/:id/end ─────────────────────────────────────────────
+// PATCH /api/sessions/:id/end 
+// Terminar uma sessão existente
 const endSession = async (req, res) => {
   try {
     const session = await Session.findOne({ _id: req.params.id, user: req.user._id });
@@ -107,7 +109,8 @@ const endSession = async (req, res) => {
   }
 };
 
-// ─── DELETE /api/sessions/:id ─────────────────────────────────────────────────
+// DELETE /api/sessions/:id
+// Eliminar uma sessão existente
 const deleteSession = async (req, res) => {
   try {
     const session = await Session.findOne({ _id: req.params.id, user: req.user._id });

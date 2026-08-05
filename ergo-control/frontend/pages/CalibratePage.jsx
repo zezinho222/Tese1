@@ -22,14 +22,14 @@ import { calculateMVC } from '../utils/emgProcessing';
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
 
-// ── Metadados por tipo de sensor (mesmo padrão de ModulesPage/ConnectModulePage) ──
+// Tipos de sensores
 const TYPE_META = {
   sEMG: { icon: '⚡', subtitle: 'Eletromiografia de Superfície', color: colors.text.yellow, bg: colors.yellowBackground },
   IMU:  { icon: '🧭', subtitle: 'Unidade de Medição Inercial',   color: colors.primary,      bg: colors.infoBorder },
 };
 
-// ── Passos do fluxo de calibração sEMG ───────────────────────────────────────
-// 'idle' → 'prepare' (3s) → 'acquiring' (5s) → 'stopping' (3s) → 'done' | 'error'
+// Passos do fluxo de calibração sEMG
+// 'idle' -> 'prepare' (3s) -> 'acquiring' (5s) -> 'stopping' (3s) -> 'done' | 'error'
 const CAL_IDLE      = 'idle';
 const CAL_PREPARE   = 'prepare';   // "Comece o MVC" — espera 3s para o utilizador se preparar
 const CAL_ACQUIRING = 'acquiring'; // 5 segundos de aquisição
@@ -37,6 +37,7 @@ const CAL_STOPPING  = 'stopping';  // "Pare o MVC" — espera 3s antes de enviar
 const CAL_DONE      = 'done';
 const CAL_ERROR     = 'error';
 
+// Página de calibração
 export default function CalibratePage({ navigation }) {
   const { token } = useAuth();
 
@@ -47,7 +48,7 @@ export default function CalibratePage({ navigation }) {
 
   // Estado da calibração sEMG
   const [calStep,       setCalStep]       = useState(CAL_IDLE);
-  const [countdown,     setCountdown]     = useState(0);  // segundos restantes
+  const [countdown,     setCountdown]     = useState(0); 
   const [calError,      setCalError]      = useState('');
   const [saving,        setSaving]        = useState(false);
 
@@ -55,7 +56,7 @@ export default function CalibratePage({ navigation }) {
   const dotAnim     = useRef(new Animated.Value(1)).current;
   const dotAnimRef  = useRef(null);
 
-  // ── Carregar módulo do AsyncStorage ──────────────────────────────────────
+  // Carregar módulo do AsyncStorage
   const loadModule = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -65,7 +66,7 @@ export default function CalibratePage({ navigation }) {
       if (raw) {
         const mod = JSON.parse(raw);
         setLocalModule(mod);
-        // IMU é auto-calibrado quando conectado
+        // IMU é calibrado automaticamente quando conectado
         if ((mod.sensorSelection === 'IMU' || mod.sensorSelection === 'DUAL') && !mod.calibrated?.IMU) {
           const updated = await syncService.queueModuleUpdate({
             calibrated: { ...mod.calibrated, IMU: true },
@@ -84,10 +85,10 @@ export default function CalibratePage({ navigation }) {
     }
   };
 
-  // Recarrega sempre que a página ganha foco (ex: ao voltar de ModulesPage)
+  // Recarregar o módulo
   useFocusEffect(useCallback(() => { loadModule(); }, []));
 
-  // ── Cleanup de timers ─────────────────────────────────────────────────────
+  // Limpar timers
   useEffect(() => {
     return () => {
       clearInterval(timerRef.current);
@@ -95,7 +96,7 @@ export default function CalibratePage({ navigation }) {
     };
   }, []);
 
-  // ── Animação do ponto pulsante (durante aquisição) ────────────────────────
+  // Animação do ponto vermelho durante a aquisição
   const startDotAnim = () => {
     dotAnimRef.current = Animated.loop(
       Animated.sequence([
@@ -106,12 +107,13 @@ export default function CalibratePage({ navigation }) {
     dotAnimRef.current.start();
   };
 
+  // Parar animação do ponto vermelho
   const stopDotAnim = () => {
     dotAnimRef.current?.stop();
     dotAnim.setValue(1);
   };
 
-  // ── Contagem decrescente genérica ─────────────────────────────────────────
+  // Contagem decrescente
   const startCountdown = (seconds, onFinish) => {
     setCountdown(seconds);
     clearInterval(timerRef.current);
@@ -127,16 +129,12 @@ export default function CalibratePage({ navigation }) {
     }, 1000);
   };
 
-  // ══════════════════════════════════════════════════════════
-  //  FLUXO DE CALIBRAÇÃO sEMG
-  // ══════════════════════════════════════════════════════════
-
+  // Inicia o fluxo de calibração sEMG
   const handleCalibrateEMG = async () => {
     setCalError('');
 
-    // A sincronização com o backend desliga o módulo sempre que há internet
-    // real (para libertar a Wi-Fi forçada) — ao voltar à rede do módulo é
-    // preciso reconectar antes de poder calibrar outra vez.
+    // Se não estiver conectado, tenta reconectar (com os valores de offset e frequência guardados localmente, se existirem)
+    // Se falhar, mostra erro
     if (!moduleService.isConnected()) {
       const reconnected = await moduleService.ensureConnected({
         offsetValue: localModule?.offsetValue,
@@ -148,25 +146,25 @@ export default function CalibratePage({ navigation }) {
       }
     }
 
-    // 1. Envia EMG ao módulo
+    // Envia EMG ao módulo
     const sent = moduleService.sendCommand('EMG');
     if (!sent) {
       setCalError('Módulo não está ligado. Reconecta antes de calibrar.');
       return;
     }
-    // 2. Mostra "Comece o MVC" — espera 3s para o utilizador se preparar
+    // Mostra "Comece o MVC" - espera 3s para o utilizador se preparar
     setCalStep(CAL_PREPARE);
     startCountdown(3, () => {
-      // 3. Após 3s → inicia aquisição (5s)
+      // Após 3s → inicia aquisição (5s)
       moduleService.startCalibration();
       setCalStep(CAL_ACQUIRING);
       startDotAnim();
       startCountdown(5, () => {
-        // 4. Após 5s → mostra "Pare o MVC", espera 3s
+        // Após 5s mostra "Pare o MVC", espera 3s
         stopDotAnim();
         setCalStep(CAL_STOPPING);
         startCountdown(3, () => {
-          // 5. Após 3s → envia IDLE e calcula MVC
+          // Após 3s envia IDLE e calcula MVC
           moduleService.sendCommand('IDLE');
           const buffer = moduleService.stopCalibration();
           handleSaveMVC(buffer);
@@ -175,9 +173,10 @@ export default function CalibratePage({ navigation }) {
     });
   };
 
+  // Guarda o MVC calculado
   const handleSaveMVC = async (buffer) => {
     setSaving(true);
-    setCalStep(CAL_IDLE); // fecha o modal de progresso enquanto guarda
+    setCalStep(CAL_IDLE);
 
     let mvc = null;
     try {
@@ -187,17 +186,10 @@ export default function CalibratePage({ navigation }) {
       mvc = null;
     }
 
-    // Um MVC de 0.0000 (ou nulo) significa que não foi captado sinal
-    // nenhum — normalmente o sensor está mal colocado ou o módulo não
-    // estava mesmo a adquirir. Não conta como calibração válida: fica por
-    // calibrar, para o botão voltar a mostrar "Calibrar" em vez de
-    // "OK"/"Repetir", e o utilizador percebe que tem de repetir.
+    // MVC válido se for maior que 0
     const valid = mvc != null && mvc > 0;
 
-    // Grava sempre localmente primeiro (offline-first) — funciona mesmo
-    // ligado à Wi-Fi do módulo, sem internet. A sincronização com o backend
-    // fica a cargo do syncService, que tenta já e volta a tentar assim que
-    // houver internet real (listener em App.js / refresh nas páginas).
+    // Grava sempre localmente primeiro (offline-first) e so quando tiver internet tenta sincronizar com o servidor
     try {
       const mod = await syncService.getLocalModule();
       if (mod) {
@@ -210,21 +202,13 @@ export default function CalibratePage({ navigation }) {
         await syncService.trySyncAll(token);
       }
     } catch {
-      // Sem internet — continua offline
     }
 
+    // Se MVC inválido, mostra erro
     setSaving(false);
     if (valid) {
       setCalStep(CAL_DONE);
     } else if (!buffer || buffer.length === 0) {
-      // Buffer completamente vazio (não só um MVC baixo) — normalmente
-      // significa que não chegou UM ÚNICO byte de dados do módulo durante
-      // os 5s de aquisição. É o sintoma típico de a ponte Wi-Fi↔UART do
-      // módulo ter ficado "presa" numa ligação anterior que caiu de forma
-      // abrupta (ex: perda de Wi-Fi a meio de uma sessão) — o TCP liga-se
-      // (handshake aceite), mas o módulo continua a "conversar" com o
-      // cliente antigo e nunca envia dados ao novo. Reconectar por si só
-      // não resolve; é preciso reiniciar fisicamente o módulo.
       setCalError('Não chegaram dados do módulo durante a aquisição. Se houve uma perda de Wi-Fi recente, desliga e volta a conectar o módulo e tenta novamente.');
       setCalStep(CAL_IDLE);
     } else {
@@ -233,6 +217,7 @@ export default function CalibratePage({ navigation }) {
     }
   };
 
+  // Cancelar calibração em qualquer passo
   const resetCalibration = () => {
     clearInterval(timerRef.current);
     stopDotAnim();
@@ -243,14 +228,13 @@ export default function CalibratePage({ navigation }) {
     setCountdown(0);
   };
 
-  // ── Sensores a mostrar com base na seleção ────────────────────────────────
+  // Mostrar os sensores com base na seleção
   const showEMG = localModule?.sensorSelection === 'EMG' || localModule?.sensorSelection === 'DUAL';
   const showIMU = localModule?.sensorSelection === 'IMU' || localModule?.sensorSelection === 'DUAL';
 
   const emgCalibrated = localModule?.calibrated?.sEMG ?? false;
   const imuCalibrated = localModule?.calibrated?.IMU  ?? false;
-
-  // ── Render ────────────────────────────────────────────────────────────────
+ 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -298,7 +282,7 @@ export default function CalibratePage({ navigation }) {
           ) : (
             <View style={styles.sensorGroup}>
 
-              {/* ── sEMG ── */}
+              {/* sEMG */}
               {showEMG && (
                 <View style={[sharedStyles.card, styles.sensorCard]}>
                   <View style={[sharedStyles.iconCircle, styles.iconCircle, { backgroundColor: TYPE_META.sEMG.bg }]}>
@@ -336,7 +320,7 @@ export default function CalibratePage({ navigation }) {
                 </View>
               )}
 
-              {/* ── IMU ── */}
+              {/* IMU */}
               {showIMU && (
                 <View style={[sharedStyles.card, styles.sensorCard]}>
                   <View style={[sharedStyles.iconCircle, styles.iconCircle, { backgroundColor: TYPE_META.IMU.bg }]}>
@@ -363,9 +347,7 @@ export default function CalibratePage({ navigation }) {
         </ScrollView>
       )}
 
-      {/* ═══════════════════════════════════════
-          Modal: Preparar (3s antes da aquisição)
-      ═══════════════════════════════════════ */}
+      {/* Preparar o MVC */}
       <Modal visible={calStep === CAL_PREPARE} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.modalCard}>
@@ -386,9 +368,7 @@ export default function CalibratePage({ navigation }) {
         </View>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal: A adquirir (5s)
-      ═══════════════════════════════════════ */}
+      {/* Adquirir o MVC */}
       <Modal visible={calStep === CAL_ACQUIRING} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.modalCard}>
@@ -409,9 +389,7 @@ export default function CalibratePage({ navigation }) {
         </View>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal: Parar MVC (3s antes de enviar IDLE)
-      ═══════════════════════════════════════ */}
+      {/* Parar o MVC */}
       <Modal visible={calStep === CAL_STOPPING} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.modalCard}>
@@ -425,9 +403,7 @@ export default function CalibratePage({ navigation }) {
         </View>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal: A guardar
-      ═══════════════════════════════════════ */}
+      {/* A calcular e guardar */}
       <Modal visible={saving} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={[styles.modalCard, { gap: 16, alignItems: 'center', paddingVertical: 40 }]}>
@@ -437,9 +413,7 @@ export default function CalibratePage({ navigation }) {
         </View>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal: Calibração Concluída
-      ═══════════════════════════════════════ */}
+      {/* Calibração concluída */}
       <Modal visible={calStep === CAL_DONE} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.modalCard}>
@@ -478,8 +452,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: 20,
   },
-
-  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -500,21 +472,15 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 50,
   },
-
-  /* ── Loading ── */
   loadingWrap: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  /* ── Scroll ── */
   scroll: {
     paddingBottom: 32,
     gap: 14,
   },
-
-  /* ── Section label ── */
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
@@ -524,8 +490,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-
-  /* ── Error ── */
   errorBox: {
     backgroundColor: colors.redBackground,
     borderColor: colors.text.red + '30',
@@ -535,8 +499,6 @@ const styles = StyleSheet.create({
     fontStyle: 'normal',
     textAlign: 'center',
   },
-
-  /* ── Empty state ── */
   emptyCard: {
     backgroundColor: colors.white,
     padding: 32,
@@ -560,8 +522,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-
-  /* ── Cards ── */
   sensorGroup: {
     gap: 12,
   },
@@ -602,8 +562,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 3,
   },
-
-  /* ── Calibrated badge ── */
   okBadge: {
     backgroundColor: colors.secondary + '25',
     borderRadius: 8,
@@ -616,8 +574,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.secondary,
   },
-
-  /* ── Calibrar button ── */
   calibrateBtn: {
     backgroundColor: colors.yellowBackground,
     borderRadius: 8,
@@ -631,7 +587,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text.yellow,
   },
-
   recalibrateBtn: {
     marginTop: 6,
     paddingHorizontal: 8,
@@ -647,8 +602,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text.secondary,
   },
-
-  /* ── Modais ── */
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',

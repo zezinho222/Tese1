@@ -17,7 +17,7 @@ import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 
-// ─── Componente de linha de campo ─────────────────────────────────────────
+
 function FieldRow({ label, value, onChange, placeholder, keyboardType, editable, secureTextEntry }) {
   return (
     <View style={styles.fieldRow}>
@@ -40,7 +40,6 @@ function FieldRow({ label, value, onChange, placeholder, keyboardType, editable,
   );
 }
 
-// ─── Componente de linha de campo sensível (email / password no modo edição) ──
 function SensitiveFieldRow({ label, currentValue, onRequestChange, loading }) {
   return (
     <View style={styles.fieldRow}>
@@ -66,7 +65,7 @@ function SensitiveFieldRow({ label, currentValue, onRequestChange, loading }) {
   );
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────
+// Página principal
 export default function PersonalDataPage({ navigation }) {
   const { user, token, login } = useAuth();
 
@@ -93,7 +92,7 @@ export default function PersonalDataPage({ navigation }) {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordSent, setPasswordSent] = useState(false);
 
-  // ─── Deteção de ligação à internet em tempo real ───────────────────────
+  // Deteção de ligação à internet em tempo real
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       setIsOffline(!state.isInternetReachable);
@@ -101,7 +100,7 @@ export default function PersonalDataPage({ navigation }) {
     return () => unsubscribe();
   }, []);
 
-  // ─── Carregar dados da DB ao entrar na página ──────────────────────────
+  // Carregar dados da DB ao entrar na página
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -110,12 +109,9 @@ export default function PersonalDataPage({ navigation }) {
           setName(data.user.name || '');
           setPhone(data.user.phone || '');
           setEmail(data.user.email || '');
-          // Atualizar o contexto de autenticação com dados frescos
           await login(data.user, token);
         }
       } catch (e) {
-        // Sem internet real (ex: ligado à Wi-Fi do módulo) — mantém os
-        // dados em cache do login, mostrados através do useState acima.
       } finally {
         setFetchLoading(false);
       }
@@ -123,7 +119,7 @@ export default function PersonalDataPage({ navigation }) {
     loadProfile();
   }, []);
 
-  // ─── Guardar nome e telemóvel ──────────────────────────────────────────
+  // Guardar nome e telemóvel
   const handleSave = async () => {
     setShowConfirmModal(false);
     setLoading(true);
@@ -142,7 +138,7 @@ export default function PersonalDataPage({ navigation }) {
     }
   };
 
-  // ─── Cancelar edição (repõe valores originais) ─────────────────────────
+  // Cancelar edição (repõe valores originais)
   const handleCancelEdit = () => {
     setName(user?.name || '');
     setPhone(user?.phone || '');
@@ -151,7 +147,7 @@ export default function PersonalDataPage({ navigation }) {
     setEmailSent(false);
   };
 
-  // ─── Pedir alteração de email ──────────────────────────────────────────
+  // Pedir alteração de email
   const handleRequestEmailChange = async () => {
     if (!newEmail.includes('@')) {
       setEmailError('Introduza um email válido.');
@@ -180,7 +176,7 @@ export default function PersonalDataPage({ navigation }) {
     setShowEmailModal(true);
   };
 
-  // ─── Pedir alteração de password ───────────────────────────────────────
+  // Pedir alteração de password
   const handleRequestPasswordChange = async () => {
     setPasswordLoading(true);
     try {
@@ -197,7 +193,7 @@ export default function PersonalDataPage({ navigation }) {
     }
   };
 
-  // ─── Render ────────────────────────────────────────────────────────────
+
   if (fetchLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -224,7 +220,7 @@ export default function PersonalDataPage({ navigation }) {
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* ── Aviso offline ── */}
+      {/* Aviso offline */}
       {isOffline && (
         <View style={styles.offlineBanner}>
           <Text style={styles.offlineBannerText}>
@@ -238,7 +234,7 @@ export default function PersonalDataPage({ navigation }) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Informação Pessoal ── */}
+        {/* Informação Pessoal */}
         <Text style={styles.sectionLabel}>Informação Pessoal</Text>
 
         <View style={[sharedStyles.card, styles.groupCard]}>
@@ -262,13 +258,12 @@ export default function PersonalDataPage({ navigation }) {
           />
         </View>
 
-        {/* ── Conta ── */}
+        {/* Conta */}
         <Text style={styles.sectionLabel}>Conta</Text>
 
         <View style={[sharedStyles.card, styles.groupCard]}>
           {/* Email */}
           {!editing ? (
-            // Modo leitura: mostra o email atual
             <FieldRow
               label="Email"
               value={email}
@@ -302,7 +297,6 @@ export default function PersonalDataPage({ navigation }) {
 
           {/* Password */}
           {!editing ? (
-            // Modo leitura: mostra pontos
             <FieldRow
               label="Password"
               value=""
@@ -442,7 +436,6 @@ export default function PersonalDataPage({ navigation }) {
                 </TouchableOpacity>
               </>
             ) : (
-              // Estado: input do novo email
               <>
                 <Text style={styles.modalTitle}>Alterar email</Text>
                 <Text style={styles.modalSubtitle}>

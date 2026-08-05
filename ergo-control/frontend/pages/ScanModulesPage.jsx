@@ -18,7 +18,7 @@ const MODULE_NAME = 'ErgoControl';
 
 export default function ScanModulesPage({ navigation }) {
   const [scanning,   setScanning]   = useState(false);
-  const [found,      setFound]      = useState(false);    // módulo encontrado
+  const [found,      setFound]      = useState(false);
   const [selected,   setSelected]   = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error,      setError]      = useState('');
@@ -26,6 +26,7 @@ export default function ScanModulesPage({ navigation }) {
   const pulse     = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(null);
 
+  // Iniciar animação de pulsação
   const startPulse = () => {
     pulseAnim.current = Animated.loop(
       Animated.sequence([
@@ -41,7 +42,7 @@ export default function ScanModulesPage({ navigation }) {
     pulse.setValue(1);
   };
 
-  // ─── Ping ao módulo ────────────────────────────────────────────────────────
+  // Ping ao módulo 
   const doScan = async () => {
     setScanning(true);
     setFound(false);
@@ -71,7 +72,7 @@ export default function ScanModulesPage({ navigation }) {
     return () => stopPulse();
   }, []);
 
-  // ─── Ligar via WebSocket ───────────────────────────────────────────────────
+  // Ligar via WebSocket 
   const handleConnect = () => {
     if (!selected) return;
     setConnecting(true);
@@ -94,7 +95,7 @@ export default function ScanModulesPage({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
-      {/* ── Header ── */}
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={sharedStyles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backArrow}>‹</Text>
@@ -106,7 +107,6 @@ export default function ScanModulesPage({ navigation }) {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionHeading}>Conectar Módulos</Text>
 
-        {/* ── Stepper: Passo 1 ativo ── */}
         <View style={styles.stepper}>
           <View style={styles.stepActive}>
             <Text style={styles.stepNumber}>1</Text>
@@ -123,7 +123,7 @@ export default function ScanModulesPage({ navigation }) {
 
         <Text style={styles.sectionLabel}>DISPOSITIVO</Text>
 
-        {/* ── A procurar ── */}
+        {/* A procurar */}
         {scanning && (
           <View style={styles.scanningWrap}>
             <Animated.View
@@ -141,7 +141,7 @@ export default function ScanModulesPage({ navigation }) {
           </View>
         )}
 
-        {/* ── Módulo encontrado ── */}
+        {/* Módulo encontrado */}
         {!scanning && found && (
           <TouchableOpacity
             style={[
@@ -167,14 +167,14 @@ export default function ScanModulesPage({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* ── Erro ── */}
+        {/* Erro */}
         {!scanning && error !== '' && (
           <View style={[sharedStyles.helperBox, styles.errorBox]}>
             <Text style={[sharedStyles.helperText, styles.errorText]}>{error}</Text>
           </View>
         )}
 
-        {/* ── Voltar a procurar ── */}
+        {/* Voltar a procurar */}
         {!scanning && (
           <TouchableOpacity
             style={[sharedStyles.card, styles.rescanBtn]}
@@ -187,7 +187,7 @@ export default function ScanModulesPage({ navigation }) {
         )}
       </ScrollView>
 
-      {/* ── Botão Ligar ── */}
+      {/* Botão Ligar */}
       <View style={styles.bottomWrap}>
         <TouchableOpacity
           style={[
@@ -216,8 +216,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
-  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -239,14 +237,10 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 50,
   },
-
-  /* ── Scroll ── */
   scroll: {
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
-
-  /* ── Títulos de secção ── */
   sectionHeading: {
     fontSize: 24,
     fontWeight: '800',
@@ -263,8 +257,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 12,
   },
-
-  /* ── Stepper ── */
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -323,8 +315,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginLeft: 4,
   },
-
-  /* ── A procurar ── */
   scanningWrap: {
     alignItems: 'center',
     paddingVertical: 32,
@@ -348,8 +338,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-
-  /* ── Card do dispositivo ── */
   deviceCard: {
     backgroundColor: colors.white,
     flexDirection: 'row',
@@ -385,8 +373,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     fontWeight: '500',
   },
-
-  /* ── Erro ── */
   errorBox: {
     backgroundColor: colors.redBackground,
     borderColor: colors.text.red + '30',
@@ -397,8 +383,6 @@ const styles = StyleSheet.create({
     fontStyle: 'normal',
     textAlign: 'center',
   },
-
-  /* ── Botão re-scan ── */
   rescanBtn: {
     backgroundColor: colors.white,
     flexDirection: 'row',
@@ -417,8 +401,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
   },
-
-  /* ── Rodapé ── */
   bottomWrap: {
     paddingHorizontal: 20,
     paddingVertical: 14,

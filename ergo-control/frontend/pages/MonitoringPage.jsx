@@ -25,8 +25,7 @@ import { DEFAULT_WINDOW_MS, DEFAULT_OVERLAP_MS } from '../utils/emgProcessing';
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
 
-// Largura do gráfico = largura do ecrã menos o padding do ScrollView (20*2)
-// e o padding interno dos cards (16*2)
+// Largura do gráfico = largura do ecrã menos o padding do ScrollView (20*2) e o padding do cartão (16*2)
 const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2;
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
@@ -38,22 +37,18 @@ export default function MonitoringPage({ navigation }) {
 
   const [localModule,     setLocalModule]     = useState(null);
   const [showStopModal,   setShowStopModal]   = useState(false);
-  const [showEnvModal,    setShowEnvModal]    = useState(false);   // janela/overlap do envelope
+  const [showEnvModal,    setShowEnvModal]    = useState(false); 
   const [windowMsInput,   setWindowMsInput]   = useState(String(DEFAULT_WINDOW_MS));
   const [overlapMsInput,  setOverlapMsInput]  = useState(String(DEFAULT_OVERLAP_MS));
   const [envError,        setEnvError]        = useState('');
-  const [envResult,       setEnvResult]       = useState(null);    // resumo mostrado no fim
+  const [envResult,       setEnvResult]       = useState(null); 
   const [showNoModModal,  setShowNoModModal]  = useState(false);
   const [showNoCal,       setShowNoCal]       = useState(false);
-  const [stopping,        setStopping]        = useState(false); // "a guardar sessão..." — só relevante para a paragem manual, enquanto o ecrã está montado
+  const [stopping,        setStopping]        = useState(false); 
   const [error,           setError]           = useState('');
   const [connectingMsg,   setConnectingMsg]   = useState('');
 
-  // A monitorização em si (timers, deteção de alertas, sessão em curso) vive
-  // em monitoringService — um singleton — e não neste componente. Assim,
-  // navegar para outro ecrã (ex: seta de "voltar") não a interrompe: ela
-  // continua a correr em segundo plano, incluindo o envio de notificações
-  // de alerta. Este ecrã é só uma "vista" que subscreve o estado atual.
+
   const [monState, setMonState] = useState(monitoringService.getState());
 
   useEffect(() => monitoringService.subscribe(setMonState), []);
@@ -72,7 +67,7 @@ export default function MonitoringPage({ navigation }) {
     [imuPoints]
   );
 
-  // ── Carregar módulo ────────────────────────────────────────────────────────
+  // Carregar módulo
   const loadModule = async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -88,7 +83,7 @@ export default function MonitoringPage({ navigation }) {
     return `${m}:${s}`;
   };
 
-  // ── Iniciar monitorização ──────────────────────────────────────────────────
+  // Iniciar monitorização
   const handleStartMonitoring = async () => {
     if (!localModule) {
       setShowNoModModal(true);
@@ -122,20 +117,15 @@ export default function MonitoringPage({ navigation }) {
     await monitoringService.start({
       sensorType,
       mvc: localModule.mvc ?? null,
-      fs:  localModule.freqHz ?? null, // Hz — usado no cálculo do envelope no fim
+      fs:  localModule.freqHz ?? null, 
       token,
     });
   };
 
-  // ── Confirmar paragem (manual) ───────────────────────────────────────────────
-  // A monitorização para já aqui (módulo desligado, timers parados) — só
-  // depois é que se pergunta a janela e o overlap do envelope RMS, cujo
-  // cálculo corre dentro de monitoringService.finishSession(). O envelope é
-  // um conceito exclusivo do sEMG — em sessões só de IMU salta-se logo o
-  // pop-up e grava-se a sessão sem mais perguntas.
+  // Confirmar paragem 
   const handleConfirmStop = async () => {
     setShowStopModal(false);
-    const { sensorType } = monState; // ler antes de stopCapture() repor o estado
+    const { sensorType } = monState;
     monitoringService.stopCapture();
 
     if (sensorType !== 'EMG' && sensorType !== 'DUAL') {
@@ -151,7 +141,7 @@ export default function MonitoringPage({ navigation }) {
     setShowEnvModal(true);
   };
 
-  // ── Calcular envelope e parar ────────────────────────────────────────────────
+  // Confirmar envelope
   const handleConfirmEnvelope = async () => {
     // aceita vírgula decimal (teclado português)
     const windowMs  = parseFloat(String(windowMsInput).replace(',', '.'));
@@ -179,7 +169,7 @@ export default function MonitoringPage({ navigation }) {
     if (env) setEnvResult(env);
   };
 
-  // ── Gráfico de linha — sEMG (mesmo estilo do gráfico IMU) ───────────────────
+  // Gráfico sEMG 
   const renderEmgLine = () => {
     if (!emgPoints || emgPoints.length === 0) {
       return (
@@ -197,7 +187,7 @@ export default function MonitoringPage({ navigation }) {
     );
   };
 
-  // ── Gráfico de linha — IMU (Pitch, Roll) ────────────────────────────────────
+  // Gráfico IMU
   const renderImuLine = () => {
     if (!imuPoints || imuPoints.length === 0) {
       return (
@@ -218,7 +208,6 @@ export default function MonitoringPage({ navigation }) {
   const showEMG = localModule?.sensorSelection === 'EMG'  || localModule?.sensorSelection === 'DUAL';
   const showIMU = localModule?.sensorSelection === 'IMU'  || localModule?.sensorSelection === 'DUAL';
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -231,7 +220,7 @@ export default function MonitoringPage({ navigation }) {
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* ── Status bar ── */}
+      {/* Status bar */}
       <View style={styles.statusRow}>
         <Text style={styles.statusLabel}>
           {localModule
@@ -260,7 +249,7 @@ export default function MonitoringPage({ navigation }) {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* ── sEMG ── */}
+        {/* sEMG */}
         {showEMG && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <View style={styles.cardHeader}>
@@ -284,7 +273,7 @@ export default function MonitoringPage({ navigation }) {
           </View>
         )}
 
-        {/* ── IMU ── */}
+        {/* IMU */}
         {showIMU && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <View style={styles.cardHeader}>
@@ -317,7 +306,7 @@ export default function MonitoringPage({ navigation }) {
           </View>
         )}
 
-        {/* ── Sem módulo ── */}
+        {/* Sem módulo */}
         {!localModule && (
           <View style={[sharedStyles.card, styles.emptyCard]}>
             <Text style={styles.emptyIcon}>🔌</Text>
@@ -328,7 +317,7 @@ export default function MonitoringPage({ navigation }) {
           </View>
         )}
 
-        {/* ── Estatísticas de sessão ── */}
+        {/* Estatísticas de sessão */}
         {isMonitoring && (
           <View style={[sharedStyles.card, styles.statsCard]}>
             <View style={styles.statItem}>
@@ -344,7 +333,7 @@ export default function MonitoringPage({ navigation }) {
         )}
       </ScrollView>
 
-      {/* ── Botão Iniciar / Parar ── */}
+      {/* Botão Iniciar / Parar */}
       <View style={styles.bottomWrap}>
         {stopping ? (
           <View style={[sharedStyles.primaryButton, styles.startBtn, { backgroundColor: colors.disabled }]}>
@@ -369,9 +358,7 @@ export default function MonitoringPage({ navigation }) {
         )}
       </View>
 
-      {/* ═══════════════════════════════════════
-          Modal: Confirmar paragem
-      ═══════════════════════════════════════ */}
+      {/* Confirmar paragem */}
       <Modal visible={showStopModal} transparent animationType="fade" onRequestClose={() => setShowStopModal(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowStopModal(false)}>
           <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
@@ -397,9 +384,7 @@ export default function MonitoringPage({ navigation }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal: Envelope RMS (janela + overlap)
-      ═══════════════════════════════════════ */}
+      {/* Envelope RMS */}
       <Modal visible={showEnvModal} transparent animationType="fade" onRequestClose={() => setShowEnvModal(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowEnvModal(false)}>
           <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
@@ -460,9 +445,7 @@ export default function MonitoringPage({ navigation }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal: Resultado do envelope
-      ═══════════════════════════════════════ */}
+      {/* Resultado do envelope */}
       <Modal visible={!!envResult} transparent animationType="fade" onRequestClose={() => setEnvResult(null)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setEnvResult(null)}>
           <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
@@ -510,9 +493,7 @@ export default function MonitoringPage({ navigation }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal: Sem módulo
-      ═══════════════════════════════════════ */}
+      {/* Sem módulo */}
       <Modal visible={showNoModModal} transparent animationType="fade" onRequestClose={() => setShowNoModModal(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowNoModModal(false)}>
           <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
@@ -542,9 +523,7 @@ export default function MonitoringPage({ navigation }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ═══════════════════════════════════════
-          Modal: sEMG não calibrado
-      ═══════════════════════════════════════ */}
+      {/* Sem calibração do semg */}
       <Modal visible={showNoCal} transparent animationType="fade" onRequestClose={() => setShowNoCal(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowNoCal(false)}>
           <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
@@ -577,8 +556,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
-  /* ── Header ── */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -600,8 +577,6 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 50,
   },
-
-  /* ── Status bar ── */
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -653,8 +628,6 @@ const styles = StyleSheet.create({
   statusBadgeTextActive: {
     color: colors.secondary,
   },
-
-  /* ── Connecting (não é erro) ── */
   connectingBox: {
     backgroundColor: colors.success,
     borderColor: colors.secondary + '30',
@@ -666,8 +639,6 @@ const styles = StyleSheet.create({
     fontStyle: 'normal',
     textAlign: 'center',
   },
-
-  /* ── Error ── */
   errorBox: {
     backgroundColor: colors.redBackground,
     borderColor: colors.text.red + '30',
@@ -679,15 +650,11 @@ const styles = StyleSheet.create({
     fontStyle: 'normal',
     textAlign: 'center',
   },
-
-  /* ── Scroll ── */
   scroll: {
     paddingHorizontal: 20,
     paddingBottom: 16,
     gap: 14,
   },
-
-  /* ── Cards de sensor ── */
   sectionCard: {
     backgroundColor: colors.white,
     padding: 16,
@@ -707,8 +674,6 @@ const styles = StyleSheet.create({
   expandBtn: {
     padding: 4,
   },
-
-  /* ── Gráfico ── */
   graphArea: {
     height: 72,
     backgroundColor: colors.background,
@@ -728,7 +693,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     fontWeight: '500',
   },
-
   latestValue: {
     fontSize: 12,
     color: colors.text.secondary,
@@ -753,8 +717,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text.primary,
   },
-
-  /* ── Empty state ── */
   emptyCard: {
     backgroundColor: colors.white,
     padding: 32,
@@ -778,8 +740,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-
-  /* ── Estatísticas de sessão ── */
   statsCard: {
     backgroundColor: colors.white,
     borderWidth: 1,
@@ -808,8 +768,6 @@ const styles = StyleSheet.create({
     height: 40,
     backgroundColor: colors.border,
   },
-
-  /* ── Botão Iniciar / Parar ── */
   bottomWrap: {
     paddingHorizontal: 20,
     paddingVertical: 14,
@@ -832,8 +790,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.white,
   },
-
-  /* ── Modais ── */
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -867,8 +823,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-
-  /* ── Envelope RMS ── */
   envField: {
     width: '100%',
     marginTop: 4,

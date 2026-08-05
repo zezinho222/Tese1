@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// Middleware para proteger rotas e verificar autenticação
 const protect = async (req, res, next) => {
   try {
     // Verificar se o token existe no header
@@ -17,7 +18,7 @@ const protect = async (req, res, next) => {
     // Verificar e descodificar o token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Buscar o utilizador na base de dados
+    // Procurar o utilizador na base de dados
     const user = await User.findById(decoded.id);
     if (!user || !user.isActive) {
       return res.status(401).json({

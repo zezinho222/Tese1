@@ -32,19 +32,15 @@ export default function ModulesPage({ navigation }) {
   const [removing, setRemoving]           = useState(false);
   const [error, setError]                 = useState('');
   const [showWifiModal, setShowWifiModal] = useState(false);
-  const [online, setOnline]               = useState(true); // internet real, usado para escolher a mensagem de sync certa
-  const [syncError, setSyncError]         = useState(null); // motivo da última falha de sync (só relevante se online)
+  const [online, setOnline]               = useState(true);
+  const [syncError, setSyncError]         = useState(null); 
 
-  // ─── Carregar módulo (fonte de verdade local, com tentativa de sync) ──
+  // Carregar módulo
   const loadModule = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError('');
     try {
-      // Espera o sync terminar ANTES de ler o estado local — se isto for
-      // "fire-and-forget" (sem await), o badge "por sincronizar" lê o
-      // valor antigo de synced e só atualiza no refresh seguinte, dando
-      // a sensação de que nunca sincroniza mesmo já havendo internet.
       await syncService.trySyncAll(token);
       const isOnline = await syncService.hasInternet();
       setOnline(isOnline);
@@ -63,7 +59,7 @@ export default function ModulesPage({ navigation }) {
     useCallback(() => { loadModule(); }, [])
   );
 
-  // ─── Remover módulo ───────────────────────────────────────────────────
+  // Remover módulo
   const confirmRemove = async () => {
     setRemoving(true);
     try {
@@ -88,14 +84,16 @@ export default function ModulesPage({ navigation }) {
     navigation.navigate('ScanModules');
   };
 
+  {/* 
   const batteryColor = (b) => {
     if (b == null) return colors.text.secondary;
     if (b >= 60)   return colors.secondary;
     if (b >= 30)   return colors.text.yellow;
     return colors.text.red;
   };
+  */}
 
-  // ─── Render ───────────────────────────────────────────────────────────
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -124,7 +122,7 @@ export default function ModulesPage({ navigation }) {
             </View>
           )}
 
-          {/* ── Módulo conectado ── */}
+          {/* Módulo conectado */}
           {localModule ? (
             <View style={[sharedStyles.card, styles.card]}>
               <View style={styles.cardHeader}>
@@ -216,7 +214,7 @@ export default function ModulesPage({ navigation }) {
             </View>
           )}
 
-          {/* ── Botão Conectar ── */}
+          {/* Botão Conectar */}
           <TouchableOpacity
             style={[sharedStyles.primaryButton, !!localModule && styles.disabledBtn]}
             onPress={handleConnectPress}
@@ -228,7 +226,7 @@ export default function ModulesPage({ navigation }) {
         </ScrollView>
       )}
 
-      {/* ── Modal: Aviso WiFi ── */}
+      {/* Aviso WiFi */}
       <Modal
         visible={showWifiModal}
         transparent
@@ -267,7 +265,7 @@ export default function ModulesPage({ navigation }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Modal: Confirmar desligar ── */}
+      {/* Confirmar desligar */}
       <Modal
         visible={moduleToRemove}
         transparent
@@ -434,6 +432,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text.primary,
   },
+  /*
   batteryRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -458,7 +457,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     width: 36,
     textAlign: 'right',
-  },
+  },*/
   disconnectBtn: {
     paddingVertical: 12,
     borderRadius: 18,

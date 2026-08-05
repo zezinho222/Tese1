@@ -45,7 +45,7 @@ const cards = [
   },
 ];
 
-// Formata a duração total (em segundos) de forma compacta para o cartão de resumo.
+// Formata a duração total (em segundos) para uma string curta
 function formatDurationShort(sec) {
   if (!sec) return '0m';
   const h = Math.floor(sec / 3600);
@@ -54,7 +54,7 @@ function formatDurationShort(sec) {
   return `${m}m`;
 }
 
-// Verdadeiro se a data ISO fornecida cair no mesmo dia de calendário que "now".
+// Compara se uma data ISO é do mesmo dia que a data atual
 function isSameDay(isoStr, now) {
   if (!isoStr) return false;
   const d = new Date(isoStr);
@@ -65,6 +65,7 @@ function isSameDay(isoStr, now) {
   );
 }
 
+// Página principal de dados
 export default function DataPage({ navigation }) {
   const { user, token } = useAuth();
 
@@ -76,7 +77,7 @@ export default function DataPage({ navigation }) {
 
   const midnightTimeoutRef = useRef(null);
 
-  // ── Calcula o resumo de hoje a partir das sessões guardadas ───────────────
+  // Calcula o resumo de hoje a partir das sessões guardadas
   const loadResumo = useCallback(async () => {
     try {
       const sessions = await syncService.getMergedSessions(token);
@@ -92,11 +93,10 @@ export default function DataPage({ navigation }) {
         { label: 'Tempo', value: formatDurationShort(totalDuration) },
       ]);
     } catch {
-      // mantém o resumo anterior em caso de erro (ex: sem sessões locais ainda)
     }
   }, [token]);
 
-  // Recarrega sempre que a página ganha foco (ex: voltar de uma sessão terminada).
+  // Recarregar o resumo
   useFocusEffect(
     useCallback(() => {
       loadResumo();
@@ -105,6 +105,8 @@ export default function DataPage({ navigation }) {
 
   // Agenda um recálculo automático à meia-noite, para o "Resumo de Hoje"
   // fazer reset mesmo que o ecrã fique aberto de um dia para o outro.
+
+  // Agendae um timeout para o próximo dia à meia-noite, e quando esse timeout dispara, recarrega o resumo e agenda outro timeout para a próxima meia-noite
   useEffect(() => {
     function scheduleMidnightReload() {
       const now = new Date();
@@ -112,7 +114,7 @@ export default function DataPage({ navigation }) {
         now.getFullYear(),
         now.getMonth(),
         now.getDate() + 1,
-        0, 0, 5 // pequena margem de segurança após a meia-noite
+        0, 0, 5  // 5 segundos depois da meia-noite, para garantir que o dia já mudou
       );
       const ms = nextMidnight - now;
 
@@ -184,7 +186,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: 20,
   },
-
   header: {
     flex: 10,
     flexDirection: 'row',
@@ -204,7 +205,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     letterSpacing: -0.5,
   },
-
   cardsSection: {
     flex: 20,
     justifyContent: 'space-evenly',
@@ -258,7 +258,6 @@ const styles = StyleSheet.create({
     lineHeight: 36,
     marginRight: 4,
   },
-
   resumoSection: {
     flex: 5,
     justifyContent: 'center',

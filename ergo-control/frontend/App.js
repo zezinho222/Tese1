@@ -9,10 +9,12 @@ import syncService from './syncService';
 import moduleService from './moduleService';
 import notificationService from './notificationService';
 
+// RootNavigator é o componente que decide se o utilizador está autenticado ou não, e mostra o ecrã correspondente
 function RootNavigator() {
   const { user, login, token } = useAuth();
   const [loading, setLoading] = useState(true);
 
+  // Tenta restaurar sessão quando a app inicia (login automatico se houver token guardado)
   useEffect(() => {
     const restore = async () => {
       try {
@@ -33,16 +35,12 @@ function RootNavigator() {
     return () => syncService.stopNetworkListener();
   }, [token]);
 
-  // Tenta sincronizar logo que houver um token disponível (ex: app reaberta já com internet).
+  // Tenta sincronizar logo que houver um token disponível
   useEffect(() => {
     if (token) syncService.trySyncAll(token);
   }, [token]);
 
-  // Notifica sempre que a ligação ao módulo cai de forma inesperada (ex: a
-  // rede Wi-Fi do módulo desliga-se, ou o próprio módulo desliga-se) —
-  // registado aqui, e não no ecrã de Monitorização, para disparar mesmo que
-  // não estejas nesse ecrã (o socket/monitorização continuam em segundo
-  // plano no moduleService independentemente do ecrã em que estás).
+  // Manda uma notificação se o módulo se desligar inesperadamente
   useEffect(() => {
     moduleService.addCloseListener('app', () => {
       notificationService.notifyDevice(
@@ -53,12 +51,7 @@ function RootNavigator() {
     return () => moduleService.removeCloseListener('app');
   }, []);
 
-  // Desliga o módulo (fecho gracioso) sempre que a app vai para segundo
-  // plano — é o que acontece quando sais para as Definições trocar de
-  // rede. Feito aqui, e não à espera do trySyncAll, porque nessa altura já
-  // não há caminho de rede até ao módulo para o FIN chegar: a ponte
-  // Wi-Fi↔UART do módulo fica "presa" a achar que ainda estás ligado e
-  // nunca mais aceita a próxima ligação.
+  // Se o módulo estiver a monitorizar, continua mesmo que a app vá para segundo plano
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if ((state === 'background' || state === 'inactive') && !moduleService.isMonitoring()) {
