@@ -1,6 +1,7 @@
 import TcpSocket from 'react-native-tcp-socket';
 import NetInfo from '@react-native-community/netinfo';
 import { Buffer } from 'buffer';
+import { createPacketTracker } from './utils/packetLoss';
 
 const MODULE_IP   = '192.168.4.1';
 const MODULE_PORT = 1234;
@@ -52,6 +53,9 @@ let calibMode     = false;
 let requestedMode = 'IDLE';
 let currentMode   = 'IDLE';
 let wifiForced    = false;       
+
+// Contador de perda de pacotes
+let packetTracker = createPacketTracker();
 
 let recvBuffer    = Buffer.alloc(0);   // buffer de receção acumulado
 let textLineBuf   = '';                // buffer de linha 
@@ -124,6 +128,8 @@ function tryParseBinaryFrames(onData) {
     const trailerLen = isDual ? DUAL_TRAILER_BYTES : EMG_TRAILER_BYTES;
     if (recvBuffer.length < headerLen) return;
 
+    const seq     = isDual ? recvBuffer.readUInt16LE(SYNC_BYTES)
+                           : recvBuffer.readUInt16LE(SYNC_BYTES + 1);
     const nsamp   = isDual ? recvBuffer.readUInt16LE(SYNC_BYTES + 2)
                            : recvBuffer.readUInt16LE(SYNC_BYTES + 1 + 2);
     const imusamp = isDual ? recvBuffer.readUInt16LE(SYNC_BYTES + 2 + 2)
@@ -156,6 +162,8 @@ function tryParseBinaryFrames(onData) {
 
     const frame = recvBuffer.slice(0, consume);
     recvBuffer  = recvBuffer.slice(consume);
+
+    packetTracker.track(seq, { samples: nsamp });
 
     let dataOff = headerLen;
     const pitchArr = [];
@@ -379,22 +387,11 @@ const moduleService = {
       }
       recvBuffer = Buffer.alloc(0);
       textLineBuf = '';
+      packetTracker.reset();
     }
 
     socket.write(wire + '\n');
     return true;
-  },
-
-  /*
-    Calcula e envia o prescaler de frequência ao módulo.
-    Firmware: f = 280MHz / ((prescaler + 1) * 27)  ->  prescaler = 280e6/(27*hz) - 1
-    Envia o comando FREQ ao MOdulo
-  */
-  setFrequency(hz) {
-    const freqValue = Math.max(0, Math.round((280e6) / (27 * hz)) - 1);
-    this.sendCommand('FREQ');
-    this.sendCommand(String(freqValue));
-    return freqValue;
   },
 
   // Inicia uma sessão de monitorização
@@ -402,17 +399,22 @@ const moduleService = {
     emgBuffer = [];
     imuBuffer = [];
     monitoring = true;
+    packetTracker.reset();
     this.sendCommand(mode);
   },
 
   // Para uma sessão de monitorização
   stopMonitoring() {
     monitoring = false;
+
+    const packetReport = packetTracker.getReport();
+
     this.sendCommand('IDLE');
 
     return {
       emgBuffer: [...emgBuffer],
       imuBuffer: [...imuBuffer],
+      packetReport,
     };
   },
 
@@ -464,11 +466,6 @@ const moduleService = {
   // Se está a decorrer uma monitorização ou calibração
   isMonitoring() {
     return monitoring || calibMode;
-  },
-
-  // Ver se esta conectado ou desconectado
-  getStatus() {
-    return socket !== null ? 'connected' : 'disconnected';
   },
 };
 

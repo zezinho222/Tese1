@@ -1,5 +1,5 @@
 // Calcula o envelope RMS com janela deslizante
-export function rmsEnvelope(signal, windowSize) {
+function rmsEnvelope(signal, windowSize) {
   const result = [];
   for (let i = 0; i <= signal.length - windowSize; i++) {
     const slice = signal.slice(i, i + windowSize);
@@ -17,12 +17,6 @@ export function calculateMVC(signal, windowSize = 50) {
   const envelope = rmsEnvelope(signal, windowSize);
   const mvc = Math.max(...envelope);
   return { mvc, envelope };
-}
-
-// Normaliza um valor pelo MVC, limitando entre 0 e 100%
-export function normalizeByMVC(value, mvc) {
-  if (!mvc || mvc === 0) return 0;
-  return Math.min(100, Math.max(0, (value / mvc) * 100));
 }
 
 //Envelope RMS da sessão (janela + overlap escolhidos pelo utilizador)

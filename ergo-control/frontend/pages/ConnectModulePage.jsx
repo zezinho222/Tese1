@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,6 @@ import {
 import Slider from '@react-native-community/slider';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../api';
 import moduleService from '../moduleService';
 import syncService from '../syncService';
 

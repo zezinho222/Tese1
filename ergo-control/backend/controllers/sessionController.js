@@ -34,7 +34,7 @@ const getSession = async (req, res) => {
 // Criar uma nova sessão
 const createSession = async (req, res) => {
   try {
-    const { sensorType, startTime, endTime, duration, mvc, alertCount, notes, module } = req.body;
+    const { sensorType, startTime, endTime, duration, mvc, alertCount, module } = req.body;
 
     if (!sensorType || !startTime) {
       return res.status(400).json({
@@ -71,7 +71,6 @@ const createSession = async (req, res) => {
       duration:   duration || 0,
       mvc:        mvc || null,
       alertCount: alertCount || 0,
-      notes:      notes || '',
     });
 
     res.status(201).json({ success: true, session });
@@ -90,7 +89,7 @@ const endSession = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Sessão não encontrada.' });
     }
 
-    const { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams } = req.body;
+    const { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats } = req.body;
 
     session.endTime    = endTime    ? new Date(endTime) : new Date();
     session.duration   = duration   ?? session.duration;
@@ -100,6 +99,7 @@ const endSession = async (req, res) => {
     if (Array.isArray(envelope)) session.envelope = envelope;
     if (envelopeParams) session.envelopeParams = envelopeParams;
     if (Array.isArray(imuData)) session.imuData = imuData;
+    if (packetStats) session.packetStats = packetStats;
 
     await session.save();
     res.status(200).json({ success: true, session });

@@ -1,5 +1,35 @@
 const mongoose = require('mongoose');
 
+// Intervalo contíguo de IDs de pacotes em falta (ex.: do 4880 ao 4885)
+const packetGapSchema = new mongoose.Schema(
+  {
+    from:  { type: Number, required: true }, // primeiro ID em falta
+    to:    { type: Number, required: true }, // último ID em falta
+    count: { type: Number, required: true }, // quantos IDs faltaram
+  },
+  { _id: false }
+);
+
+// Estatísticas de perda de pacotes de uma sessão
+const packetStatsSchema = new mongoose.Schema(
+  {
+    firstSeq:        { type: Number,  default: null },  // primeiro ID recebido
+    lastSeq:         { type: Number,  default: null },  // último ID recebido
+    received:        { type: Number,  default: 0 },     // pacotes recebidos
+    lost:            { type: Number,  default: 0 },     // pacotes perdidos
+    expected:        { type: Number,  default: 0 },     // recebidos + perdidos
+    lossPct:         { type: Number,  default: 0 },     // % de perda
+    duplicates:      { type: Number,  default: 0 },     // IDs repetidos
+    outOfOrder:      { type: Number,  default: 0 },     // IDs fora de ordem
+    wraps:           { type: Number,  default: 0 },     // voltas ao contador uint16
+    samplesReceived: { type: Number,  default: 0 },     // amostras EMG recebidas
+    samplesLostEst:  { type: Number,  default: 0 },     // amostras perdidas (estimativa)
+    gaps:            { type: [packetGapSchema], default: [] },
+    gapsTruncated:   { type: Boolean, default: false }, // lista de falhas cortada
+  },
+  { _id: false }
+);
+
 // Esquema das sessões na base de dados
 const sessionSchema = new mongoose.Schema(
   {
@@ -76,6 +106,11 @@ const sessionSchema = new mongoose.Schema(
     envelope: {
       type: [Number],
       default: [],
+    },
+    // Estatísticas de perda de pacotes
+    packetStats: {
+      type: packetStatsSchema,
+      default: null,
     },
     // Parâmetros do envelope RMS
     envelopeParams: {

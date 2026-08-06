@@ -1,4 +1,5 @@
 import { buildTimeAxisLabels } from './chartAxis';
+import { formatGap } from './packetLoss';
 
 const CHART_COLORS = {
   emg:      '#F59E0B',
@@ -26,7 +27,7 @@ function downsampleForChart(arr, maxPoints = 200) {
 // Gera o conteúdo CSV de uma sessão
 export function buildSessionCsv({
   sessionNumber, sensorLabel, dateStr, timeStr, durationSec, alertCount, mvc, emgData, imuData,
-  envelope, envelopeParams,
+  envelope, envelopeParams, packetStats,
 }) {
   const lines = [];
   lines.push('Resumo da Sessão');
@@ -38,6 +39,31 @@ export function buildSessionCsv({
   lines.push(`Alertas,${alertCount ?? 0}`);
   if (mvc != null) lines.push(`MVC,${mvc}`);
   lines.push('');
+
+  // Perda de pacotes
+  if (packetStats) {
+    lines.push('Perda de pacotes');
+    lines.push(`Pacotes esperados,${packetStats.expected ?? 0}`);
+    lines.push(`Pacotes recebidos,${packetStats.received ?? 0}`);
+    lines.push(`Pacotes perdidos,${packetStats.lost ?? 0}`);
+    lines.push(`Taxa de perda (%),${(packetStats.lossPct ?? 0).toFixed(4)}`);
+    lines.push(`Primeiro ID,${packetStats.firstSeq ?? ''}`);
+    lines.push(`Último ID,${packetStats.lastSeq ?? ''}`);
+    lines.push(`Duplicados,${packetStats.duplicates ?? 0}`);
+    lines.push(`Fora de ordem,${packetStats.outOfOrder ?? 0}`);
+    lines.push(`Amostras recebidas,${packetStats.samplesReceived ?? 0}`);
+    lines.push(`Amostras perdidas (estimativa),${packetStats.samplesLostEst ?? 0}`);
+    lines.push('');
+    const gaps = Array.isArray(packetStats.gaps) ? packetStats.gaps : [];
+    if (gaps.length > 0) {
+      lines.push('IDs em falta');
+      lines.push('Primeiro ID,Último ID,Quantidade');
+      gaps.forEach((g) => lines.push(`${g.from},${g.to},${g.count}`));
+    } else {
+      lines.push('IDs em falta,Nenhum');
+    }
+    lines.push('');
+  }
 
   if (Array.isArray(emgData) && emgData.length > 0) {
     lines.push('Dados sEMG');
@@ -139,7 +165,7 @@ function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = 
 // Gera o conteúdo HTML de um PDF de sessão
 export function buildSessionPdfHtml({
   sessionNumber, sensorLabel, dateStr, timeStr, durationStr, durationSec, alertCount, mvc,
-  showEMG, showIMU, emgData, imuData, envelope, envelopeParams,
+  showEMG, showIMU, emgData, imuData, envelope, envelopeParams, packetStats,
 }) {
   const emgChart = showEMG
     ? svgLineChart([{ data: downsampleForChart(emgData), color: CHART_COLORS.emg }], { totalSeconds: durationSec })
@@ -156,6 +182,22 @@ export function buildSessionPdfHtml({
   const envelopeChart = hasEnvelope
     ? svgLineChart([{ data: envelope.map((v) => v * 100), color: CHART_COLORS.envelope }], { totalSeconds: durationSec })
     : '';
+  const packetGaps = Array.isArray(packetStats?.gaps) ? packetStats.gaps : [];
+  const packetBlock = packetStats ? `
+    <h2>Perda de Pacotes</h2>
+    <div class="grid">
+      <div class="item"><div class="label">Pacotes esperados</div><div class="value">${packetStats.expected ?? 0}</div></div>
+      <div class="item"><div class="label">Pacotes recebidos</div><div class="value">${packetStats.received ?? 0}</div></div>
+      <div class="item"><div class="label">Pacotes perdidos</div><div class="value">${packetStats.lost ?? 0}</div></div>
+      <div class="item"><div class="label">Taxa de perda</div><div class="value">${(packetStats.lossPct ?? 0).toFixed(2)}%</div></div>
+      <div class="item"><div class="label">Intervalo de IDs</div><div class="value">${packetStats.firstSeq ?? '-'} &rarr; ${packetStats.lastSeq ?? '-'}</div></div>
+      <div class="item"><div class="label">Amostras perdidas (est.)</div><div class="value">~${packetStats.samplesLostEst ?? 0}</div></div>
+    </div>
+    <div class="label">${packetGaps.length > 0
+      ? `IDs em falta: ${packetGaps.map((g) => formatGap(g)).join(' | ')}${packetStats.gapsTruncated ? ' ...' : ''}`
+      : 'Nenhum ID em falta - sequencia de pacotes completa.'}</div>
+  ` : '';
+
   const envelopePeak = hasEnvelope ? Math.max(...envelope) : 0;
   const envelopeMean = hasEnvelope ? envelope.reduce((sum, v) => sum + v, 0) / envelope.length : 0;
 
@@ -185,6 +227,7 @@ export function buildSessionPdfHtml({
           <div class="item"><div class="label">Alertas</div><div class="value">${alertCount ?? 0}</div></div>
           ${mvc != null ? `<div class="item"><div class="label">MVC</div><div class="value">${mvc}</div></div>` : ''}
         </div>
+        ${packetBlock}
         ${showEMG ? `<h2>sEMG - Resumo da Sessão</h2>${emgChart}` : ''}
         ${hasEnvelope ? `
           <h2>Envelope RMS - Resumo da Sessão</h2>

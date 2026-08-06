@@ -21,6 +21,7 @@ import { useAuth } from '../context/AuthContext';
 import syncService from '../syncService';
 import { buildSessionCsv, buildSessionPdfHtml } from '../utils/exportUtils';
 import { buildTimeAxisLabels } from '../utils/chartAxis';
+import { formatGap, expandMissingIds } from '../utils/packetLoss';
 import ChartTimeAxis from '../components/ChartTimeAxis';
 import ExcelIcon from '../assets/excel.png';
 import PdfIcon from '../assets/pdf.png';
@@ -125,6 +126,12 @@ export default function HistoryDetailPage({ navigation, route }) {
   const imuData = Array.isArray(session.imuData) ? session.imuData : [];
   const emgChartData = syncService.downsampleArray(emgData);
   const imuChartData = syncService.downsampleArray(imuData);
+ 
+
+  const packetStats  = session.packetStats || null;
+  const packetGaps   = Array.isArray(packetStats?.gaps) ? packetStats.gaps : [];
+  const missingIds   = expandMissingIds(packetGaps, 60);
+  const hasLoss      = !!packetStats && packetStats.lost > 0;
 
   // envelope já vem calculado da sessão (1.0 = 100%), não
   // precisa de downsample porque já é bem mais pequeno do que o sinal em bruto
@@ -151,6 +158,7 @@ export default function HistoryDetailPage({ navigation, route }) {
         imuData,
         envelope,
         envelopeParams,
+        packetStats,
       });
       const fileUri = FileSystem.cacheDirectory + `sessao-${sessionNumber}.csv`;
       await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: 'utf8' });
@@ -189,6 +197,7 @@ export default function HistoryDetailPage({ navigation, route }) {
         imuData,
         envelope,
         envelopeParams,
+        packetStats,
       });
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
@@ -357,7 +366,7 @@ export default function HistoryDetailPage({ navigation, route }) {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── RESUMO ── */}
+        {/* RESUMO */}
         <View style={[sharedStyles.card, styles.sectionCard]}>
           <Text style={styles.sectionLabel}>RESUMO</Text>
 
@@ -389,6 +398,111 @@ export default function HistoryDetailPage({ navigation, route }) {
               <Text style={styles.metaValue}>{session.alertCount ?? 0}</Text>
             </View>
           </View>
+        </View>
+
+        {/* Perda de Pacotes */}
+        <View style={[sharedStyles.card, styles.sectionCard]}>
+          <Text style={styles.sectionLabel}>Perda de Pacotes</Text>
+
+          {!packetStats ? (
+            <Text style={styles.noDataText}>
+              Sem contagem de pacotes para esta sessão.
+            </Text>
+          ) : (
+            <>
+              <View style={styles.gridRow}>
+                <View style={styles.gridItem}>
+                  <Text style={styles.metaLabel}>Pacotes esperados</Text>
+                  <Text style={styles.metaValue}>{packetStats.expected ?? 0}</Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.metaLabel}>Pacotes recebidos</Text>
+                  <Text style={styles.metaValue}>{packetStats.received ?? 0}</Text>
+                </View>
+              </View>
+
+              <View style={styles.gridRow}>
+                <View style={styles.gridItem}>
+                  <Text style={styles.metaLabel}>Pacotes perdidos</Text>
+                  <Text style={[styles.metaValue, hasLoss && styles.lossValue]}>
+                    {packetStats.lost ?? 0}
+                  </Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.metaLabel}>Taxa de perda</Text>
+                  <Text style={[styles.metaValue, hasLoss && styles.lossValue]}>
+                    {(packetStats.lossPct ?? 0).toFixed(2)}%
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.gridRow}>
+                <View style={styles.gridItem}>
+                  <Text style={styles.metaLabel}>Intervalo de IDs</Text>
+                  <Text style={styles.metaValue}>
+                    {packetStats.firstSeq ?? '—'} → {packetStats.lastSeq ?? '—'}
+                  </Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.metaLabel}>Duplicados / fora de ordem</Text>
+                  <Text style={styles.metaValue}>
+                    {packetStats.duplicates ?? 0} / {packetStats.outOfOrder ?? 0}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.gridRow}>
+                <View style={styles.gridItem}>
+                  <Text style={styles.metaLabel}>Amostras recebidas</Text>
+                  <Text style={styles.metaValue}>{packetStats.samplesReceived ?? 0}</Text>
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={styles.metaLabel}>Amostras perdidas (est.)</Text>
+                  <Text style={[styles.metaValue, hasLoss && styles.lossValue]}>
+                    ~{packetStats.samplesLostEst ?? 0}
+                  </Text>
+                </View>
+              </View>
+
+              {/* IDs em falta */}
+              {!hasLoss ? (
+                <View style={styles.okBox}>
+                  <Text style={styles.okText}>
+                    Nenhum ID em falta — a sequência de pacotes está completa.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.lossBox}>
+                  <Text style={styles.lossBoxTitle}>
+                    IDs em falta ({packetGaps.length} intervalo{packetGaps.length === 1 ? '' : 's'})
+                  </Text>
+                  <View style={styles.idChipRow}>
+                    {packetGaps.slice(0, 30).map((g, i) => (
+                      <View key={`${g.from}-${i}`} style={styles.idChip}>
+                        <Text style={styles.idChipText}>{formatGap(g)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {packetGaps.length > 30 && (
+                    <Text style={styles.lossFootnote}>
+                      ... e mais {packetGaps.length - 30} intervalo(s).
+                    </Text>
+                  )}
+                  {missingIds.length > 0 && (
+                    <Text style={styles.lossFootnote}>
+                      Primeiros IDs perdidos: {missingIds.join(', ')}
+                      {packetStats.lost > missingIds.length ? ' ...' : ''}
+                    </Text>
+                  )}
+                  {packetStats.gapsTruncated && (
+                    <Text style={styles.lossFootnote}>
+                      A lista de falhas foi truncada (demasiadas perdas para registar todas).
+                    </Text>
+                  )}
+                </View>
+              )}
+            </>
+          )}
         </View>
 
         {/* sEMG - Resumo da Sessão */}
@@ -578,6 +692,55 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: colors.text.primary,
+  },
+  lossValue: {
+    color: colors.text.red,
+  },
+  okBox: {
+    backgroundColor: colors.success,
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 4,
+  },
+  okText: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    fontWeight: '600',
+  },
+  lossBox: {
+    backgroundColor: colors.redBackground,
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 4,
+    gap: 6,
+  },
+  lossBoxTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text.red,
+  },
+  idChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  idChip: {
+    backgroundColor: colors.white,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: colors.text.red + '30',
+  },
+  idChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.text.red,
+  },
+  lossFootnote: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    fontWeight: '500',
   },
   graphTitle: {
     fontSize: 15,

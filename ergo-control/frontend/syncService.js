@@ -110,6 +110,7 @@ async function queueNewSession({ sensorType, startTime, mvc }) {
       imuData: [],
       envelope: [],
       envelopeParams: null,
+      packetStats: null,
     };
     sessions.unshift(entry);
     await writeSessions(sessions);
@@ -120,7 +121,7 @@ async function queueNewSession({ sensorType, startTime, mvc }) {
 }
 
 // Preenche a sessão local com os dados finais
-async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams }) {
+async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats }) {
   const sessions = await readSessions();
   const idx = sessions.findIndex((s) => s.localId === localId);
   if (idx === -1) return;
@@ -134,6 +135,7 @@ async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount, em
     imuData: imuData ?? sessions[idx].imuData ?? [],
     envelope: envelope ?? sessions[idx].envelope ?? [],
     envelopeParams: envelopeParams ?? sessions[idx].envelopeParams ?? null,
+    packetStats: packetStats ?? sessions[idx].packetStats ?? null,
     synced: false, // força reenvio do estado final ao backend
   };
   await writeSessions(sessions);
@@ -175,6 +177,7 @@ async function pullRemoteSessions(token) {
         envelope: remote.envelope ?? [],
         envelopeParams: remote.envelopeParams ?? null,
         imuData: remote.imuData ?? [],
+        packetStats: remote.packetStats ?? null,
       }));
 
     // Sessões já sincronizadas (com backendId) que deixaram de existir no backend são removidas localmente 
@@ -265,6 +268,7 @@ async function syncSessions(token) {
           envelope: s.envelope || [],
           envelopeParams: s.envelopeParams || null,
           imuData: s.imuData || [],
+          packetStats: s.packetStats || null,
         });
         if (res2?.success) {
           s.synced = true;

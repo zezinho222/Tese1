@@ -79,9 +79,6 @@ export const api = {
   getModules: async (token) =>
     authFetch('/api/modules', token),
 
-  scanModules: async (token) =>
-    authFetch('/api/modules/scan', token),
-
   addModule: async (token, { name, ip, port, battery, sensorSelection, offsetValue, offsetLabel, freqHz, freqValue }) =>
     authFetch('/api/modules', token, {
       method: 'POST',
@@ -103,19 +100,16 @@ export const api = {
   getSessions: async (token) =>
     authFetch('/api/sessions', token),
 
-  getSession: async (token, sessionId) =>
-    authFetch(`/api/sessions/${sessionId}`, token),
-
   createSession: async (token, { sensorType, startTime, endTime, duration, mvc, alertCount, module }) =>
     authFetch('/api/sessions', token, {
       method: 'POST',
       body: JSON.stringify({ sensorType, startTime, endTime, duration, mvc, alertCount, module }),
     }),
 
-  endSession: async (token, sessionId, { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams }) =>
+  endSession: async (token, sessionId, { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats }) =>
     authFetch(`/api/sessions/${sessionId}/end`, token, {
       method: 'PATCH',
-      body: JSON.stringify({ endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams }),
+      body: JSON.stringify({ endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats }),
     }),
 
   deleteSession: async (token, sessionId) =>

@@ -3,6 +3,7 @@ import moduleService from './moduleService';
 import notificationService from './notificationService';
 import { createAlertTracker } from './utils/alertTracker';
 import { computeRmsEnvelope } from './utils/emgProcessing';
+import { formatPacketReport, toStoredStats } from './utils/packetLoss';
 
 const REFRESH_MS     = 1000; // intervalo de atualização do gráfico
 const DISPLAY_POINTS = 20;  // quantos pontos mostrar no gráfico
@@ -110,11 +111,18 @@ function stopCapture() {
   clearInterval(elapsedInterval);
   clearInterval(graphInterval);
 
-  const { emgBuffer, imuBuffer } = moduleService.stopMonitoring();
+  const { emgBuffer, imuBuffer, packetReport } = moduleService.stopMonitoring();
+  const relatorio = formatPacketReport(packetReport, {
+    sensorType:  state.sensorType,
+    durationSec: state.elapsedSec,
+  });
+  if (packetReport && packetReport.lost > 0) console.warn(relatorio);
+  else console.log(relatorio);
 
   pendingStop = {
     emgBuffer,
     imuBuffer,
+    packetStats: toStoredStats(packetReport),
     sensorType: state.sensorType,
     endTime:    new Date(),
     duration:   state.elapsedSec,
@@ -128,7 +136,7 @@ function stopCapture() {
 // Calcula o envelope RMS e grava a sessão
 async function finishSession({ windowMs, overlapMs } = {}) {
   if (!pendingStop) return;
-  const { emgBuffer, imuBuffer, sensorType, endTime, duration, alertCount } = pendingStop;
+  const { emgBuffer, imuBuffer, packetStats, sensorType, endTime, duration, alertCount } = pendingStop;
   pendingStop = null;
 
   // O envelope RMS é um conceito exclusivo do sEMG (é calculado a partir do
@@ -159,6 +167,7 @@ async function finishSession({ windowMs, overlapMs } = {}) {
       alertCount,
       emgData:    emgBuffer,
       imuData:    imuBuffer,
+      packetStats,
       envelope:   envResult ? envResult.envelope : [],
       envelopeParams: envResult ? {
         windowMs:      envResult.windowMs,
