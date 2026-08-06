@@ -22,8 +22,12 @@ const packetStatsSchema = new mongoose.Schema(
     duplicates:      { type: Number,  default: 0 },     // IDs repetidos
     outOfOrder:      { type: Number,  default: 0 },     // IDs fora de ordem
     wraps:           { type: Number,  default: 0 },     // voltas ao contador uint16
-    samplesReceived: { type: Number,  default: 0 },     // amostras EMG recebidas
-    samplesLostEst:  { type: Number,  default: 0 },     // amostras perdidas (estimativa)
+    emgSamplesReceived: { type: Number,  default: 0 },  // amostras sEMG recebidas
+    imuSamplesReceived: { type: Number,  default: 0 },  // amostras IMU recebidas
+    emgSamplesLostEst:  { type: Number,  default: 0 },  // amostras sEMG perdidas 
+    imuSamplesLostEst:  { type: Number,  default: 0 },  // amostras IMU perdidas
+    hasEmg:          { type: Boolean, default: false }, // a sessão recolheu sEMG
+    hasImu:          { type: Boolean, default: false }, // a sessão recolheu IMU
     gaps:            { type: [packetGapSchema], default: [] },
     gapsTruncated:   { type: Boolean, default: false }, // lista de falhas cortada
   },
@@ -107,7 +111,6 @@ const sessionSchema = new mongoose.Schema(
       type: [Number],
       default: [],
     },
-    // Estatísticas de perda de pacotes
     packetStats: {
       type: packetStatsSchema,
       default: null,

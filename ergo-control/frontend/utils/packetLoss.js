@@ -15,8 +15,10 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
   let duplicates = 0;
   let outOfOrder = 0;
   let wraps = 0;
-  let samplesReceived = 0;
-  let samplesLostEst = 0;
+  let emgSamplesReceived = 0;
+  let imuSamplesReceived = 0;
+  let emgSamplesLostEst = 0;
+  let imuSamplesLostEst = 0;
   let gaps = [];
   let gapsTruncated = false;
   let startedAt = null;
@@ -30,21 +32,23 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
     duplicates = 0;
     outOfOrder = 0;
     wraps = 0;
-    samplesReceived = 0;
-    samplesLostEst = 0;
+    emgSamplesReceived = 0;
+    imuSamplesReceived = 0;
+    emgSamplesLostEst = 0;
+    imuSamplesLostEst = 0;
     gaps = [];
     gapsTruncated = false;
     startedAt = null;
     lastAt = null;
   }
-  
-  // Regista a chegada de um pacote.
-  function track(seq, { samples = 0, now = Date.now() } = {}) {
+
+  function track(seq, { emgSamples = 0, imuSamples = 0, now = Date.now() } = {}) {
     if (!Number.isFinite(seq)) return null;
     const id = ((Math.trunc(seq) % modulo) + modulo) % modulo;
 
     received += 1;
-    samplesReceived += samples;
+    emgSamplesReceived += emgSamples;
+    imuSamplesReceived += imuSamples;
     lastAt = now;
 
     if (firstSeq === null) {
@@ -70,8 +74,11 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
       const to = (id - 1 + modulo) % modulo;
 
       lost += forward;
-      const avgSamples = received > 0 ? samplesReceived / received : 0;
-      samplesLostEst += Math.round(forward * avgSamples);
+      // Média de amostras por pacote até agora, por sensor
+      const avgEmg = received > 0 ? emgSamplesReceived / received : 0;
+      const avgImu = received > 0 ? imuSamplesReceived / received : 0;
+      emgSamplesLostEst += Math.round(forward * avgEmg);
+      imuSamplesLostEst += Math.round(forward * avgImu);
 
       if (gaps.length < maxGaps) gaps.push({ from, to, count: forward });
       else gapsTruncated = true;
@@ -99,9 +106,12 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
       duplicates,
       outOfOrder,
       wraps,
-      samplesReceived,
-      samplesLostEst,
-      avgSamplesPerPacket: received > 0 ? samplesReceived / received : 0,
+      emgSamplesReceived,
+      imuSamplesReceived,
+      emgSamplesLostEst,
+      imuSamplesLostEst,
+      hasEmg: emgSamplesReceived > 0,
+      hasImu: imuSamplesReceived > 0,
       gaps: gaps.map((g) => ({ ...g })),
       gapsTruncated,
       durationMs: startedAt != null && lastAt != null ? lastAt - startedAt : 0,
@@ -130,8 +140,6 @@ export function formatGap(gap) {
   return `${gap.from}–${gap.to} (${gap.count})`;
 }
 
-
-// Versão compacta do relatório, para gravar na sessão (local + backend)
 export function toStoredStats(report, { maxGaps = 100 } = {}) {
   if (!report) return null;
   return {
@@ -144,20 +152,24 @@ export function toStoredStats(report, { maxGaps = 100 } = {}) {
     duplicates: report.duplicates,
     outOfOrder: report.outOfOrder,
     wraps: report.wraps,
-    samplesReceived: report.samplesReceived,
-    samplesLostEst: report.samplesLostEst,
+    emgSamplesReceived: report.emgSamplesReceived,
+    imuSamplesReceived: report.imuSamplesReceived,
+    emgSamplesLostEst: report.emgSamplesLostEst,
+    imuSamplesLostEst: report.imuSamplesLostEst,
+    hasEmg: report.hasEmg,
+    hasImu: report.hasImu,
     gaps: report.gaps.slice(0, maxGaps),
     gapsTruncated: report.gapsTruncated || report.gaps.length > maxGaps,
   };
 }
 
-// Relatório formatado para o terminal
+// Terminal
 export function formatPacketReport(report, { sensorType, durationSec } = {}) {
   if (!report) return '[ErgoControl] Sem estatísticas de pacotes.';
 
-  const pad = (label) => (label + ' ').padEnd(24, '.');
+  const pad = (label) => (label + ' ').padEnd(28, '.');
   const L = [];
-  const line = '─'.repeat(56);
+  const line = '─'.repeat(60);
 
   L.push(line);
   L.push('[ErgoControl] Integridade dos pacotes — monitorização terminada');
@@ -178,8 +190,14 @@ export function formatPacketReport(report, { sensorType, durationSec } = {}) {
   L.push(`  ${pad('Pacotes perdidos')} ${report.lost} (${report.lossPct.toFixed(3)}%)`);
   L.push(`  ${pad('Duplicados')} ${report.duplicates}`);
   L.push(`  ${pad('Fora de ordem')} ${report.outOfOrder}`);
-  L.push(`  ${pad('Amostras recebidas')} ${report.samplesReceived}`);
-  L.push(`  ${pad('Amostras perdidas')} ~${report.samplesLostEst} (estimativa)`);
+  if (report.hasEmg) {
+    L.push(`  ${pad('Amostras sEMG recebidas')} ${report.emgSamplesReceived}`);
+    L.push(`  ${pad('Amostras sEMG perdidas')} ~${report.emgSamplesLostEst} (estimativa)`);
+  }
+  if (report.hasImu) {
+    L.push(`  ${pad('Amostras IMU recebidas')} ${report.imuSamplesReceived}`);
+    L.push(`  ${pad('Amostras IMU perdidas')} ~${report.imuSamplesLostEst} (estimativa)`);
+  }
 
   if (report.lost === 0) {
     L.push('  ✔ Nenhum ID em falta — sequência completa.');

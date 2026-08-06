@@ -40,9 +40,9 @@ export function buildSessionCsv({
   if (mvc != null) lines.push(`MVC,${mvc}`);
   lines.push('');
 
-  // Perda de pacotes
+  // Perda de Pacotes
   if (packetStats) {
-    lines.push('Perda de pacotes');
+    lines.push('Perda de Pacotes');
     lines.push(`Pacotes esperados,${packetStats.expected ?? 0}`);
     lines.push(`Pacotes recebidos,${packetStats.received ?? 0}`);
     lines.push(`Pacotes perdidos,${packetStats.lost ?? 0}`);
@@ -51,8 +51,14 @@ export function buildSessionCsv({
     lines.push(`Último ID,${packetStats.lastSeq ?? ''}`);
     lines.push(`Duplicados,${packetStats.duplicates ?? 0}`);
     lines.push(`Fora de ordem,${packetStats.outOfOrder ?? 0}`);
-    lines.push(`Amostras recebidas,${packetStats.samplesReceived ?? 0}`);
-    lines.push(`Amostras perdidas (estimativa),${packetStats.samplesLostEst ?? 0}`);
+    if (packetStats.hasEmg) {
+      lines.push(`Amostras sEMG recebidas,${packetStats.emgSamplesReceived ?? 0}`);
+      lines.push(`Amostras sEMG perdidas,${packetStats.emgSamplesLostEst ?? 0}`);
+    }
+    if (packetStats.hasImu) {
+      lines.push(`Amostras IMU recebidas,${packetStats.imuSamplesReceived ?? 0}`);
+      lines.push(`Amostras IMU perdidas,${packetStats.imuSamplesLostEst ?? 0}`);
+    }
     lines.push('');
     const gaps = Array.isArray(packetStats.gaps) ? packetStats.gaps : [];
     if (gaps.length > 0) {
@@ -184,14 +190,19 @@ export function buildSessionPdfHtml({
     : '';
   const packetGaps = Array.isArray(packetStats?.gaps) ? packetStats.gaps : [];
   const packetBlock = packetStats ? `
-    <h2>Perda de Pacotes</h2>
+    <h2>Integridade da Transmissão</h2>
     <div class="grid">
       <div class="item"><div class="label">Pacotes esperados</div><div class="value">${packetStats.expected ?? 0}</div></div>
       <div class="item"><div class="label">Pacotes recebidos</div><div class="value">${packetStats.received ?? 0}</div></div>
       <div class="item"><div class="label">Pacotes perdidos</div><div class="value">${packetStats.lost ?? 0}</div></div>
       <div class="item"><div class="label">Taxa de perda</div><div class="value">${(packetStats.lossPct ?? 0).toFixed(2)}%</div></div>
       <div class="item"><div class="label">Intervalo de IDs</div><div class="value">${packetStats.firstSeq ?? '-'} &rarr; ${packetStats.lastSeq ?? '-'}</div></div>
-      <div class="item"><div class="label">Amostras perdidas (est.)</div><div class="value">~${packetStats.samplesLostEst ?? 0}</div></div>
+      ${packetStats.hasEmg ? `
+      <div class="item"><div class="label">Amostras sEMG recebidas</div><div class="value">${packetStats.emgSamplesReceived ?? 0}</div></div>
+      <div class="item"><div class="label">Amostras sEMG perdidas </div><div class="value">${packetStats.emgSamplesLostEst ?? 0}</div></div>` : ''}
+      ${packetStats.hasImu ? `
+      <div class="item"><div class="label">Amostras IMU recebidas</div><div class="value">${packetStats.imuSamplesReceived ?? 0}</div></div>
+      <div class="item"><div class="label">Amostras IMU perdidas </div><div class="value">${packetStats.imuSamplesLostEst ?? 0}</div></div>` : ''}
     </div>
     <div class="label">${packetGaps.length > 0
       ? `IDs em falta: ${packetGaps.map((g) => formatGap(g)).join(' | ')}${packetStats.gapsTruncated ? ' ...' : ''}`

@@ -54,7 +54,8 @@ let requestedMode = 'IDLE';
 let currentMode   = 'IDLE';
 let wifiForced    = false;       
 
-// Contador de perda de pacotes
+// Contador de perda de pacotes, usa o campo `seq` do cabeçalho de cada frame como ID do pacote
+// É reiniciado sempre que se muda de modo e lido no fim da monitorização.
 let packetTracker = createPacketTracker();
 
 let recvBuffer    = Buffer.alloc(0);   // buffer de receção acumulado
@@ -163,7 +164,13 @@ function tryParseBinaryFrames(onData) {
     const frame = recvBuffer.slice(0, consume);
     recvBuffer  = recvBuffer.slice(consume);
 
-    packetTracker.track(seq, { samples: nsamp });
+    const imuOnly = requestedMode === 'IMU';
+    const emgOnly = requestedMode === 'EMG';
+
+    packetTracker.track(seq, {
+      emgSamples: imuOnly ? 0 : nsamp,
+      imuSamples: emgOnly ? 0 : imusamp,
+    });
 
     let dataOff = headerLen;
     const pitchArr = [];
@@ -176,13 +183,6 @@ function tryParseBinaryFrames(onData) {
     for (let i = 0; i < nsamp; i++) { emgArr.push(frame.readUInt16LE(dataOff)); dataOff += 2; }
     const imuSamples = pitchArr.map((p, i) => [p, rollArr[i]]);
 
-    /* Sessão de um só sensor: o frame vem sempre em DUAL, por isso o bloco do
-       sensor que não foi pedido é lixo para esta sessão e é deitado fora
-       aqui 
-       O buffer correspondente fica vazio
-    */
-    const imuOnly = requestedMode === 'IMU';
-    const emgOnly = requestedMode === 'EMG';
     const emgOut  = imuOnly ? [] : emgArr;
     const imuOut  = emgOnly ? [] : imuSamples;
 

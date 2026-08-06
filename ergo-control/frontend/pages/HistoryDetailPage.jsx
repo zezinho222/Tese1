@@ -126,12 +126,16 @@ export default function HistoryDetailPage({ navigation, route }) {
   const imuData = Array.isArray(session.imuData) ? session.imuData : [];
   const emgChartData = syncService.downsampleArray(emgData);
   const imuChartData = syncService.downsampleArray(imuData);
- 
 
+  /* Integridade da transmissão: cada frame do módulo traz um ID (seq).
+     packetStats foi calculado no fim da monitorização e guardado com a sessão. */
   const packetStats  = session.packetStats || null;
   const packetGaps   = Array.isArray(packetStats?.gaps) ? packetStats.gaps : [];
   const missingIds   = expandMissingIds(packetGaps, 60);
   const hasLoss      = !!packetStats && packetStats.lost > 0;
+
+  const showPacketEmg = packetStats ? (packetStats.hasEmg ?? showEMG) : false;
+  const showPacketImu = packetStats ? (packetStats.hasImu ?? showIMU) : false;
 
   // envelope já vem calculado da sessão (1.0 = 100%), não
   // precisa de downsample porque já é bem mais pequeno do que o sinal em bruto
@@ -366,7 +370,7 @@ export default function HistoryDetailPage({ navigation, route }) {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* RESUMO */}
+        {/*  RESUMO  */}
         <View style={[sharedStyles.card, styles.sectionCard]}>
           <Text style={styles.sectionLabel}>RESUMO</Text>
 
@@ -400,7 +404,7 @@ export default function HistoryDetailPage({ navigation, route }) {
           </View>
         </View>
 
-        {/* Perda de Pacotes */}
+        {/*Perda de Pacotes*/}
         <View style={[sharedStyles.card, styles.sectionCard]}>
           <Text style={styles.sectionLabel}>Perda de Pacotes</Text>
 
@@ -451,18 +455,37 @@ export default function HistoryDetailPage({ navigation, route }) {
                 </View>
               </View>
 
-              <View style={styles.gridRow}>
-                <View style={styles.gridItem}>
-                  <Text style={styles.metaLabel}>Amostras recebidas</Text>
-                  <Text style={styles.metaValue}>{packetStats.samplesReceived ?? 0}</Text>
+              {/* Amostras por sensor. Numa sessão só de IMU não aparece a
+                  linha do sEMG, e vice-versa. */}
+              {showPacketEmg && (
+                <View style={styles.gridRow}>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.metaLabel}>Amostras sEMG recebidas</Text>
+                    <Text style={styles.metaValue}>{packetStats.emgSamplesReceived ?? 0}</Text>
+                  </View>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.metaLabel}>Amostras sEMG perdidas</Text>
+                    <Text style={[styles.metaValue, hasLoss && styles.lossValue]}>
+                      {packetStats.emgSamplesLostEst ?? 0}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.gridItem}>
-                  <Text style={styles.metaLabel}>Amostras perdidas (est.)</Text>
-                  <Text style={[styles.metaValue, hasLoss && styles.lossValue]}>
-                    ~{packetStats.samplesLostEst ?? 0}
-                  </Text>
+              )}
+
+              {showPacketImu && (
+                <View style={styles.gridRow}>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.metaLabel}>Amostras IMU recebidas</Text>
+                    <Text style={styles.metaValue}>{packetStats.imuSamplesReceived ?? 0}</Text>
+                  </View>
+                  <View style={styles.gridItem}>
+                    <Text style={styles.metaLabel}>Amostras IMU perdidas</Text>
+                    <Text style={[styles.metaValue, hasLoss && styles.lossValue]}>
+                      {packetStats.imuSamplesLostEst ?? 0}
+                    </Text>
+                  </View>
                 </View>
-              </View>
+              )}
 
               {/* IDs em falta */}
               {!hasLoss ? (
