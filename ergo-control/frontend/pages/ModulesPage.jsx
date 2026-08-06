@@ -191,7 +191,7 @@ export default function ModulesPage({ navigation }) {
                   )}
                 </View>
                 <Text style={[styles.batteryPct, { color: batteryColor(localModule.battery) }]}>
-                  {localModule.battery != null ? `${localModule.battery}%` : '—'}
+                  {localModule.battery != null ? `${localModule.battery}%` : '-'}
                 </Text>
               </View>
               */}

@@ -225,7 +225,7 @@ async function syncPendingDeletes(token) {
       const res = await api.deleteSession(token, backendId);
       if (!res?.success) stillPending.push(backendId);
     } catch {
-      stillPending.push(backendId); // ainda sem internet real — tenta na próxima
+      stillPending.push(backendId);
     }
   }
   await writePendingDeletes(stillPending);

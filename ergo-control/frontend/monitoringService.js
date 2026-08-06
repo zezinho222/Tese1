@@ -115,6 +115,7 @@ function stopCapture() {
   const relatorio = formatPacketReport(packetReport, {
     sensorType:  state.sensorType,
     durationSec: state.elapsedSec,
+    fs:          fsValue,
   });
   if (packetReport && packetReport.lost > 0) console.warn(relatorio);
   else console.log(relatorio);
@@ -138,10 +139,6 @@ async function finishSession({ windowMs, overlapMs } = {}) {
   if (!pendingStop) return;
   const { emgBuffer, imuBuffer, packetStats, sensorType, endTime, duration, alertCount } = pendingStop;
   pendingStop = null;
-
-  // O envelope RMS é um conceito exclusivo do sEMG (é calculado a partir do
-  // sinal em bruto normalizado pelo MVC) — em sessões só de IMU não há sinal
-  // nenhum para isso, por isso nem se calcula.
 
   // So calcula o envelope RMS se for monitorização EMG ou DUAL
   // caso contrário, devolve null
@@ -183,13 +180,6 @@ async function finishSession({ windowMs, overlapMs } = {}) {
   sessionId = null;
   return envResult;
 }
-
-/**
- * Para a monitorização e guarda logo a sessão com a janela/overlap por
- * omissão — usado quando não há pop-up para o utilizador escolher (ex:
- * paragem automática ao perder a ligação ao módulo). Seguro chamar mesmo
- * sem monitorização ativa.
- */
 
 // Para a monitorização atual: interrompe a captura de dados e finaliza a sessão
 async function stop() {

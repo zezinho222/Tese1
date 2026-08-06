@@ -44,9 +44,9 @@ export default function ProfilePage({ navigation }) {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
   const [stats, setStats] = useState([
-    { label: 'Sessões', value: '—' },
-    { label: 'Monitorizadas', value: '—' },
-    { label: 'Alertas', value: '—' },
+    { label: 'Sessões', value: '-' },
+    { label: 'Monitorizadas', value: '-' },
+    { label: 'Alertas', value: '-' },
   ]);
 
   // Carrega estatísticas de sessões e alertas do utilizador

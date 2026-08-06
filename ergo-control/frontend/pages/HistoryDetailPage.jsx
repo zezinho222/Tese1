@@ -32,13 +32,13 @@ const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2 - Y_AXIS_LA
 
 // Formatação de data e hora
 function formatDateOnly(isoStr) {
-  if (!isoStr) return '—';
+  if (!isoStr) return '-';
   const d = new Date(isoStr);
   return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function formatTime(isoStr) {
-  if (!isoStr) return '—';
+  if (!isoStr) return '-';
   const d = new Date(isoStr);
   return d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 }
@@ -127,8 +127,6 @@ export default function HistoryDetailPage({ navigation, route }) {
   const emgChartData = syncService.downsampleArray(emgData);
   const imuChartData = syncService.downsampleArray(imuData);
 
-  /* Integridade da transmissão: cada frame do módulo traz um ID (seq).
-     packetStats foi calculado no fim da monitorização e guardado com a sessão. */
   const packetStats  = session.packetStats || null;
   const packetGaps   = Array.isArray(packetStats?.gaps) ? packetStats.gaps : [];
   const missingIds   = expandMissingIds(packetGaps, 60);
@@ -444,7 +442,7 @@ export default function HistoryDetailPage({ navigation, route }) {
                 <View style={styles.gridItem}>
                   <Text style={styles.metaLabel}>Intervalo de IDs</Text>
                   <Text style={styles.metaValue}>
-                    {packetStats.firstSeq ?? '—'} → {packetStats.lastSeq ?? '—'}
+                    {packetStats.firstSeq ?? '-'} {'->'} {packetStats.lastSeq ?? '-'}
                   </Text>
                 </View>
                 <View style={styles.gridItem}>
@@ -491,7 +489,7 @@ export default function HistoryDetailPage({ navigation, route }) {
               {!hasLoss ? (
                 <View style={styles.okBox}>
                   <Text style={styles.okText}>
-                    Nenhum ID em falta — a sequência de pacotes está completa.
+                    Nenhum ID em falta - a sequência de pacotes está completa.
                   </Text>
                 </View>
               ) : (

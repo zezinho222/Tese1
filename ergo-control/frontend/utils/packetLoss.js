@@ -164,7 +164,7 @@ export function toStoredStats(report, { maxGaps = 100 } = {}) {
 }
 
 // Terminal
-export function formatPacketReport(report, { sensorType, durationSec } = {}) {
+export function formatPacketReport(report, { sensorType, durationSec, fs } = {}) {
   if (!report) return '[ErgoControl] Sem estatísticas de pacotes.';
 
   const pad = (label) => (label + ' ').padEnd(28, '.');
@@ -172,7 +172,7 @@ export function formatPacketReport(report, { sensorType, durationSec } = {}) {
   const line = '─'.repeat(60);
 
   L.push(line);
-  L.push('[ErgoControl] Integridade dos pacotes — monitorização terminada');
+  L.push('[ErgoControl] Perda de Pacotes');
   L.push(line);
   if (sensorType) L.push(`  ${pad('Modo')} ${sensorType}`);
   if (durationSec != null) L.push(`  ${pad('Duração')} ${durationSec} s`);
@@ -185,6 +185,11 @@ export function formatPacketReport(report, { sensorType, durationSec } = {}) {
 
   L.push(`  ${pad('Intervalo de IDs')} ${report.firstSeq} → ${report.lastSeq}` +
     (report.wraps > 0 ? ` (${report.wraps}x wrap-around)` : ''));
+  if (durationSec > 0) {
+    const obs = report.received / durationSec;
+    const esperado = fs > 0 ? ` (esperado ~${(fs / 256).toFixed(2)} a ${fs} Hz)` : '';
+    L.push(`  ${pad('Cadência de pacotes')} ${obs.toFixed(2)} pacotes/s${esperado}`);
+  }
   L.push(`  ${pad('Pacotes esperados')} ${report.expected}`);
   L.push(`  ${pad('Pacotes recebidos')} ${report.received}`);
   L.push(`  ${pad('Pacotes perdidos')} ${report.lost} (${report.lossPct.toFixed(3)}%)`);
@@ -200,7 +205,7 @@ export function formatPacketReport(report, { sensorType, durationSec } = {}) {
   }
 
   if (report.lost === 0) {
-    L.push('  ✔ Nenhum ID em falta — sequência completa.');
+    L.push('  ✔ Nenhum ID em falta - sequência completa.');
   } else {
     L.push(`  IDs em falta (${report.gaps.length} intervalo(s)):`);
     report.gaps.forEach((g) => L.push(`      ${formatGap(g)}`));

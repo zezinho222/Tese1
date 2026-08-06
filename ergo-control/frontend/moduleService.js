@@ -20,7 +20,7 @@ const DUAL_HEADER_BYTES  = SYNC_BYTES + 2 + 2 + 2 + 4;
 // Trailer: battery(2) + crc(2)
 const DUAL_TRAILER_BYTES = 2 + 2;
 
-// Limites de sanidade — se nsamp/imu_samp lidos vierem acima disto, é sinal
+// Limites de sanidade, se nsamp/imu_samp lidos vierem acima disto, é sinal
 // de que o SYNC encontrado não é o início real de um frame válido neste modo
 // (ex: bytes residuais de uma transição de modo)
 // Nesse caso, descarta este SYNC e procura o próximo,
@@ -45,13 +45,15 @@ let listeners     = new Map();
 let closeListeners = new Map();  
 let expectedClose  = false;      
 let emgBuffer     = [];          // buffer de monitorização EMG
-let imuBuffer     = [];          // buffer de monitorização IMU — cada item é [pitch, roll]
+let imuBuffer     = [];          // buffer de monitorização IMU, cada item é [pitch, roll]
 let calibBuffer   = [];          // buffer exclusivo da calibração
 let monitoring    = false;
 let calibMode     = false;
 
 let requestedMode = 'IDLE';
 let currentMode   = 'IDLE';
+let appliedOffset = null;
+let appliedFreq   = null;
 let wifiForced    = false;       
 
 // Contador de perda de pacotes, usa o campo `seq` do cabeçalho de cada frame como ID do pacote
@@ -68,7 +70,7 @@ function startWifiWatch() {
   netUnsubscribe = NetInfo.addEventListener((state) => {
     if (!socket) return; 
     if (state.type !== 'wifi' || state.isConnected === false) {
-      console.log('[ModuleService] Wi-Fi do módulo perdida — a fechar ligação.');
+      console.log('[ModuleService] Wi-Fi do módulo perdida - a fechar ligação.');
       try { socket.destroy(); } catch {}
     }
   });
@@ -223,7 +225,6 @@ function handleIncomingData(data, onData) {
     recvBuffer = Buffer.concat([recvBuffer, chunk]);
     tryParseBinaryFrames(onData);
   } else {
-    // modo texto (IMU/POT/FREQ/IDLE) — linhas terminadas em '\n'
     textLineBuf += chunk.toString('utf8');
     let nl;
     while ((nl = textLineBuf.indexOf('\n')) !== -1) {
@@ -300,6 +301,8 @@ const moduleService = {
       socket.on('close', () => {
         console.log('[ModuleService] TCP fechado');
         socket = null;
+        appliedOffset = null;
+        appliedFreq   = null;
         stopWifiWatch();
         onClose && onClose();
         if (!expectedClose) {
@@ -334,31 +337,35 @@ const moduleService = {
     }
     currentMode   = 'IDLE';
     requestedMode = 'IDLE';
+    appliedOffset = null;
+    appliedFreq   = null;
     await releaseModuleWifi();
   },
-
-  // Garante que há ligação, reconectando se necessário 
-  // Reenvia POT/FREQ (que se perdem a cada queda de socket)
   async ensureConnected({ offsetValue, freqValue } = {}) {
-    if (socket) return true;
-
-    const ok = await new Promise((resolve) => {
-      this.connect({
-        onOpen: () => resolve(true),
-        onError: () => resolve(false),
+    if (!socket) {
+      const ok = await new Promise((resolve) => {
+        this.connect({
+          onOpen: () => resolve(true),
+          onError: () => resolve(false),
+        });
       });
-    });
-    if (!ok) return false;
+      if (!ok) return false;
+    }
 
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-    if (offsetValue != null) {
+
+    if (offsetValue != null && offsetValue !== appliedOffset) {
+      console.log(`[ModuleService] A aplicar POT = ${offsetValue}`);
       this.sendCommand('POT');
       this.sendCommand(String(offsetValue));
+      appliedOffset = offsetValue;
       await wait(3200);
     }
-    if (freqValue != null) {
+    if (freqValue != null && freqValue !== appliedFreq) {
+      console.log(`[ModuleService] A aplicar FREQ = ${freqValue}`);
       this.sendCommand('FREQ');
       this.sendCommand(String(freqValue));
+      appliedFreq = freqValue;
       await wait(3200);
     }
     return true;
@@ -367,7 +374,7 @@ const moduleService = {
   // Envia comandos ao módulo (EMG IMU DUAL IDLE)
   sendCommand(cmd) {
     if (!socket) {
-      console.warn('[ModuleService] Não foi possível enviar — socket não ligado');
+      console.warn('[ModuleService] Não foi possível enviar - socket não ligado');
       return false;
     }
     const str = String(cmd);

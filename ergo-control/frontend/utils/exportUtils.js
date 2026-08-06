@@ -190,7 +190,7 @@ export function buildSessionPdfHtml({
     : '';
   const packetGaps = Array.isArray(packetStats?.gaps) ? packetStats.gaps : [];
   const packetBlock = packetStats ? `
-    <h2>Integridade da Transmissão</h2>
+    <h2>Perda de Pacotes</h2>
     <div class="grid">
       <div class="item"><div class="label">Pacotes esperados</div><div class="value">${packetStats.expected ?? 0}</div></div>
       <div class="item"><div class="label">Pacotes recebidos</div><div class="value">${packetStats.received ?? 0}</div></div>

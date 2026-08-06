@@ -68,7 +68,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
     if (!emgPoints.length) {
       return (
         <View style={styles.graphEmpty}>
-          <Text style={styles.noDataText}>Sem dados — Inicia a monitorização</Text>
+          <Text style={styles.noDataText}>Sem dados - Inicia a monitorização</Text>
         </View>
       );
     }
@@ -91,7 +91,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
     if (!imuPoints.length) {
       return (
         <View style={styles.graphEmpty}>
-          <Text style={styles.noDataText}>Sem dados — Inicia a monitorização</Text>
+          <Text style={styles.noDataText}>Sem dados - Inicia a monitorização</Text>
         </View>
       );
     }
@@ -113,7 +113,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
     );
   };
 
-  const title = type === 'EMG' ? '⚡ sEMG — Atividade Muscular' : '🧭 IMU — Dados de Movimento';
+  const title = type === 'EMG' ? '⚡ sEMG - Atividade Muscular' : '🧭 IMU - Dados de Movimento';
 
   return (
     <SafeAreaView style={styles.container}>

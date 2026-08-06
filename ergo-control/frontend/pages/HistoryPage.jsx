@@ -30,7 +30,7 @@ function formatDuration(sec) {
 }
 
 function formatDate(isoStr) {
-  if (!isoStr) return '—';
+  if (!isoStr) return '-';
   const d = new Date(isoStr);
   const now = new Date();
   const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
