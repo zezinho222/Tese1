@@ -15,10 +15,8 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
   let duplicates = 0;
   let outOfOrder = 0;
   let wraps = 0;
-  let emgSamplesReceived = 0;
-  let imuSamplesReceived = 0;
-  let emgSamplesLostEst = 0;
-  let imuSamplesLostEst = 0;
+  let emgSamplesSeen = 0;
+  let imuSamplesSeen = 0;
   let gaps = [];
   let gapsTruncated = false;
   let startedAt = null;
@@ -32,10 +30,8 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
     duplicates = 0;
     outOfOrder = 0;
     wraps = 0;
-    emgSamplesReceived = 0;
-    imuSamplesReceived = 0;
-    emgSamplesLostEst = 0;
-    imuSamplesLostEst = 0;
+    emgSamplesSeen = 0;
+    imuSamplesSeen = 0;
     gaps = [];
     gapsTruncated = false;
     startedAt = null;
@@ -47,8 +43,8 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
     const id = ((Math.trunc(seq) % modulo) + modulo) % modulo;
 
     received += 1;
-    emgSamplesReceived += emgSamples;
-    imuSamplesReceived += imuSamples;
+    emgSamplesSeen += emgSamples;
+    imuSamplesSeen += imuSamples;
     lastAt = now;
 
     if (firstSeq === null) {
@@ -74,12 +70,6 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
       const to = (id - 1 + modulo) % modulo;
 
       lost += forward;
-      // Média de amostras por pacote até agora, por sensor
-      const avgEmg = received > 0 ? emgSamplesReceived / received : 0;
-      const avgImu = received > 0 ? imuSamplesReceived / received : 0;
-      emgSamplesLostEst += Math.round(forward * avgEmg);
-      imuSamplesLostEst += Math.round(forward * avgImu);
-
       if (gaps.length < maxGaps) gaps.push({ from, to, count: forward });
       else gapsTruncated = true;
 
@@ -94,8 +84,18 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
     return null;
   }
 
-  function getReport() {
+  function getReport(overrides = {}) {
     const expected = received + lost;
+
+    const emgRx = overrides.emgSamplesReceived ?? emgSamplesSeen;
+    const imuRx = overrides.imuSamplesReceived ?? imuSamplesSeen;
+
+    const hasEmg = overrides.hasEmg ?? emgRx > 0;
+    const hasImu = overrides.hasImu ?? imuRx > 0;
+
+    const avgEmg = received > 0 ? emgRx / received : 0;
+    const avgImu = received > 0 ? imuRx / received : 0;
+
     return {
       firstSeq,
       lastSeq,
@@ -106,12 +106,12 @@ export function createPacketTracker({ modulo = SEQ_MODULO, maxGaps = MAX_GAPS } 
       duplicates,
       outOfOrder,
       wraps,
-      emgSamplesReceived,
-      imuSamplesReceived,
-      emgSamplesLostEst,
-      imuSamplesLostEst,
-      hasEmg: emgSamplesReceived > 0,
-      hasImu: imuSamplesReceived > 0,
+      emgSamplesReceived: emgRx,
+      imuSamplesReceived: imuRx,
+      emgSamplesLostEst: hasEmg ? Math.round(lost * avgEmg) : 0,
+      imuSamplesLostEst: hasImu ? Math.round(lost * avgImu) : 0,
+      hasEmg,
+      hasImu,
       gaps: gaps.map((g) => ({ ...g })),
       gapsTruncated,
       durationMs: startedAt != null && lastAt != null ? lastAt - startedAt : 0,
@@ -152,12 +152,12 @@ export function toStoredStats(report, { maxGaps = 100 } = {}) {
     duplicates: report.duplicates,
     outOfOrder: report.outOfOrder,
     wraps: report.wraps,
-    emgSamplesReceived: report.emgSamplesReceived,
-    imuSamplesReceived: report.imuSamplesReceived,
-    emgSamplesLostEst: report.emgSamplesLostEst,
-    imuSamplesLostEst: report.imuSamplesLostEst,
-    hasEmg: report.hasEmg,
-    hasImu: report.hasImu,
+    emgSamplesReceived: report.emgSamplesReceived ?? 0,
+    imuSamplesReceived: report.imuSamplesReceived ?? 0,
+    emgSamplesLostEst: report.emgSamplesLostEst ?? 0,
+    imuSamplesLostEst: report.imuSamplesLostEst ?? 0,
+    hasEmg: !!report.hasEmg,
+    hasImu: !!report.hasImu,
     gaps: report.gaps.slice(0, maxGaps),
     gapsTruncated: report.gapsTruncated || report.gaps.length > maxGaps,
   };

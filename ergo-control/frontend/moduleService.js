@@ -406,8 +406,12 @@ const moduleService = {
   // Para uma sessão de monitorização
   stopMonitoring() {
     monitoring = false;
-
-    const packetReport = packetTracker.getReport();
+    const packetReport = packetTracker.getReport({
+      emgSamplesReceived: emgBuffer.length,
+      imuSamplesReceived: imuBuffer.length,
+      hasEmg: requestedMode === 'EMG' || requestedMode === 'DUAL',
+      hasImu: requestedMode === 'IMU' || requestedMode === 'DUAL',
+    });
 
     this.sendCommand('IDLE');
 

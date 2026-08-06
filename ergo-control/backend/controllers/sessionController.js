@@ -99,7 +99,10 @@ const endSession = async (req, res) => {
     if (Array.isArray(envelope)) session.envelope = envelope;
     if (envelopeParams) session.envelopeParams = envelopeParams;
     if (Array.isArray(imuData)) session.imuData = imuData;
-    if (packetStats) session.packetStats = packetStats;
+    if (packetStats) {
+      session.packetStats = packetStats;
+      session.markModified('packetStats');
+    }
 
     await session.save();
     res.status(200).json({ success: true, session });
