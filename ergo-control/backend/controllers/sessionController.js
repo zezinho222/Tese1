@@ -1,13 +1,18 @@
 const Session = require('../models/Session');
 const Module = require('../models/Module');
 
+const LIST_FIELDS =
+  '_id user userName module moduleName sensorType startTime endTime duration mvc alertCount synced createdAt updatedAt';
+
 // GET /api/sessions
 // Listar todas as sessões do utilizador autenticado
 const getSessions = async (req, res) => {
   try {
     const sessions = await Session.find({ user: req.user._id })
+      .select(LIST_FIELDS)
       .sort({ startTime: -1 })
-      .limit(100);
+      .limit(200)
+      .lean();
     res.status(200).json({ success: true, sessions });
   } catch (error) {
     console.error('Erro ao listar sessões:', error);
@@ -16,10 +21,10 @@ const getSessions = async (req, res) => {
 };
 
 // GET /api/sessions/:id
-// Obter detalhes de uma sessão específica
+// Obter detalhes de uma sessão específica (inclui os sinais em bruto)
 const getSession = async (req, res) => {
   try {
-    const session = await Session.findOne({ _id: req.params.id, user: req.user._id });
+    const session = await Session.findOne({ _id: req.params.id, user: req.user._id }).lean();
     if (!session) {
       return res.status(404).json({ success: false, message: 'Sessão não encontrada.' });
     }
@@ -80,7 +85,6 @@ const createSession = async (req, res) => {
   }
 };
 
-// PATCH /api/sessions/:id/end 
 // Terminar uma sessão existente
 const endSession = async (req, res) => {
   try {
@@ -105,7 +109,21 @@ const endSession = async (req, res) => {
     }
 
     await session.save();
-    res.status(200).json({ success: true, session });
+
+    // Devolve só metadados, não faz sentido reenviar à app os megabytes de
+    // sinal que ela acabou de mandar
+    res.status(200).json({
+      success: true,
+      session: {
+        _id:        session._id,
+        sensorType: session.sensorType,
+        startTime:  session.startTime,
+        endTime:    session.endTime,
+        duration:   session.duration,
+        mvc:        session.mvc,
+        alertCount: session.alertCount,
+      },
+    });
   } catch (error) {
     console.error('Erro ao terminar sessão:', error);
     res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
@@ -116,7 +134,7 @@ const endSession = async (req, res) => {
 // Eliminar uma sessão existente
 const deleteSession = async (req, res) => {
   try {
-    const session = await Session.findOne({ _id: req.params.id, user: req.user._id });
+    const session = await Session.findOne({ _id: req.params.id, user: req.user._id }).select('_id');
     if (!session) {
       return res.status(404).json({ success: false, message: 'Sessão não encontrada.' });
     }

@@ -67,24 +67,25 @@ export default function HistoryDetailPage({ navigation, route }) {
   // Carrega a sessão do histórico (via syncService) e guarda no estado local
   // Se não encontrar, mostra erro
   const loadSession = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const sessions = await syncService.getMergedSessions(token);
-      const idx = sessions.findIndex((s) => s.localId === sessionId);
-      if (idx === -1) {
-        setError('Sessão não encontrada.');
-        setSession(null);
-      } else {
-        setSession(sessions[idx]);
-        setSessionNumber(sessions.length - idx);
-      }
-    } catch {
-      setError('Erro ao carregar a sessão.');
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  setError('');
+  try {
+    const sessions = await syncService.getMergedSessions(token);
+    const idx = sessions.findIndex((s) => s.localId === sessionId);
+    if (idx === -1) {
+      setError('Sessão não encontrada.');
+      setSession(null);
+      return;
     }
-  }, [sessionId, token]);
+    setSessionNumber(sessions.length - idx);
+    const full = await syncService.getSessionDetail(token, sessionId);
+    setSession(full || sessions[idx]);
+  } catch {
+    setError('Erro ao carregar a sessão.');
+  } finally {
+    setLoading(false);
+  }
+}, [sessionId, token]);
 
   useFocusEffect(useCallback(() => { loadSession(); }, [loadSession]));
 

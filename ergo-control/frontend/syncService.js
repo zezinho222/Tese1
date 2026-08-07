@@ -3,26 +3,28 @@ import NetInfo from '@react-native-community/netinfo';
 import { api } from './api';
 import moduleService from './moduleService';
 
-// Gere a fila de sincronização offline-first entre o AsyncStorage locale o backend
-// As páginas Histórico e Módulos lem sempre a partir daqui nunca só do api.js diretamente, para funcionarem também sem internet
-
-const SESSIONS_KEY = '@ergocontrol/sessions';
-const MODULE_KEY   = '@ergocontrol/connected_module';
+const SESSIONS_KEY        = '@ergocontrol/sessions';
+const SESSION_DATA_PREFIX = '@ergocontrol/session_data/';
+const MODULE_KEY          = '@ergocontrol/connected_module';
 const PENDING_DELETES_KEY = '@ergocontrol/pending_session_deletes';
-const MAX_CHART_POINTS = 200; // limite de pontos guardados nos graficos por sessão 
+const MAX_CHART_POINTS    = 200; // limite de pontos desenhados nos gráficos por sessão
 
-let syncPromise = null;        
+let syncPromise    = null;
 let netUnsubscribe = null;
-let tokenGetter = () => null;
-let lastSyncError = null;      
+let tokenGetter    = () => null;
+let lastSyncError  = null;
 
-// Gera um ID único local (prefixo "local_") para identificar sessões criadas offline, antes de terem um ID atribuído pelo backend
+// Campos pesados que NUNCA podem ficar no índice
+const HEAVY_FIELDS = ['emgData', 'imuData', 'envelope', 'envelopeParams', 'packetStats'];
+
+// Gera um ID único local (prefixo "local_") para identificar sessões criadas offline,
+// antes de terem um ID atribuído pelo backend
 function generateLocalId() {
   return `local_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Usado nos graficos do Histórico e no PDF exportado, para não sobrecarregar a app nem o backend com milhares de pontos por sessão
-// A redução é feita só no momento de desenhar os gráficos, nunca ao guardar os dados brutos.
+// Usado nos gráficos do Histórico e no PDF exportado, para não sobrecarregar a app.
+// A redução é feita só no momento de desenhar, nunca ao guardar os dados brutos.
 function downsampleArray(arr, maxPoints = MAX_CHART_POINTS) {
   if (!Array.isArray(arr) || arr.length <= maxPoints) return arr || [];
   const step = arr.length / maxPoints;
@@ -33,24 +35,94 @@ function downsampleArray(arr, maxPoints = MAX_CHART_POINTS) {
   return result;
 }
 
-// Le do AsyncStorage a lista de sessões guardadas localmente
-// Devolve [] se não existir ou der erro
-async function readSessions() {
+// Separa um objeto de sessão em { light, data }
+function splitSession(session) {
+  const light = { ...session };
+  const data = {};
+  for (const f of HEAVY_FIELDS) {
+    if (f in light) {
+      data[f] = light[f];
+      delete light[f];
+    }
+  }
+  light.hasLocalData = true;
+  return { light, data };
+}
+
+// Índice de sessões (leve)
+async function readIndex() {
   try {
     const raw = await AsyncStorage.getItem(SESSIONS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  } catch (e) {
+    console.warn('[syncService] Falha ao ler o índice de sessões:', e?.message || e);
     return [];
   }
 }
 
-// Substitui no AsyncStorage a lista completa de sessões locais
-async function writeSessions(sessions) {
-  await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+async function writeIndex(sessions) {
+  // rede de segurança: garante que nada pesado entra no índice
+  const light = sessions.map((s) => {
+    const copy = { ...s };
+    for (const f of HEAVY_FIELDS) delete copy[f];
+    return copy;
+  });
+  try {
+    await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(light));
+  } catch (e) {
+    console.warn('[syncService] Falha ao gravar o índice de sessões:', e?.message || e);
+  }
 }
 
-// Le do AsyncStorage os dados do módulo atualmente ligado
-// Devolve null se não existir ou der erro
+// Dados pesados de uma sessão
+async function readSessionData(localId) {
+  try {
+    const raw = await AsyncStorage.getItem(SESSION_DATA_PREFIX + localId);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    console.warn('[syncService] Falha ao ler os dados da sessão', localId, e?.message || e);
+    return null;
+  }
+}
+
+async function writeSessionData(localId, data) {
+  try {
+    await AsyncStorage.setItem(SESSION_DATA_PREFIX + localId, JSON.stringify(data || {}));
+    return true;
+  } catch (e) {
+    console.warn('[syncService] Falha ao gravar os dados da sessão', localId, e?.message || e);
+    return false;
+  }
+}
+
+async function removeSessionData(localId) {
+  try {
+    await AsyncStorage.removeItem(SESSION_DATA_PREFIX + localId);
+  } catch {}
+}
+
+let migrated = false;
+async function migrateLegacyStorage() {
+  if (migrated) return;
+  migrated = true;
+  const index = await readIndex();
+  if (index.length === 0) return;
+  const needsMigration = index.some((s) => HEAVY_FIELDS.some((f) => f in s));
+  if (!needsMigration) return;
+
+  console.log('[syncService] A migrar o histórico local para o novo formato…');
+  for (const s of index) {
+    if (!HEAVY_FIELDS.some((f) => f in s)) continue;
+    const { data } = splitSession(s);
+    await writeSessionData(s.localId, data);
+  }
+  await writeIndex(index.map((s) => ({ ...s, hasLocalData: true })));
+}
+
+// Módulo
 async function readModule() {
   try {
     const raw = await AsyncStorage.getItem(MODULE_KEY);
@@ -65,7 +137,7 @@ async function writeModule(moduleData) {
   await AsyncStorage.setItem(MODULE_KEY, JSON.stringify(moduleData));
 }
 
-// IDs (backendId) de sessões apagadas localmente sem internet real, que ainda faltam apagar no backend
+// IDs (backendId) de sessões apagadas localmente sem internet real
 async function readPendingDeletes() {
   try {
     const raw = await AsyncStorage.getItem(PENDING_DELETES_KEY);
@@ -82,38 +154,37 @@ async function writePendingDeletes(ids) {
 
 // Verdadeiro só se houver mesmo acesso à internet (não conta o Wi-Fi do módulo, sem internet)
 async function hasInternet() {
+  let state = null;
   try {
-    const state = await NetInfo.fetch();
-    return !!state.isInternetReachable;
+    state = await NetInfo.fetch();
   } catch {
     return false;
   }
+  if (state?.isInternetReachable === true) return true;
+  if (state?.isConnected === false) return false;
+  return api.ping();
 }
 
 // Sessões
 // Cria e guarda localmente uma sessão nova (ainda sem backendId)
 async function queueNewSession({ sensorType, startTime, mvc }) {
+  await migrateLegacyStorage();
   const localId = generateLocalId();
   try {
-    const sessions = await readSessions();
-    const entry = {
+    const sessions = await readIndex();
+    sessions.unshift({
       localId,
       backendId: null,
       synced: false,
+      hasLocalData: false,
       sensorType,
       startTime,
       endTime: null,
       duration: null,
       mvc: mvc ?? null,
       alertCount: 0,
-      emgData: [],
-      imuData: [],
-      envelope: [],
-      envelopeParams: null,
-      packetStats: null,
-    };
-    sessions.unshift(entry);
-    await writeSessions(sessions);
+    });
+    await writeIndex(sessions);
   } catch (e) {
     console.warn('[syncService] Falha ao gravar sessão localmente:', e);
   }
@@ -121,81 +192,161 @@ async function queueNewSession({ sensorType, startTime, mvc }) {
 }
 
 // Preenche a sessão local com os dados finais
-async function queueSessionEnd(localId, { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats }) {
-  const sessions = await readSessions();
+async function queueSessionEnd(localId, {
+  endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats,
+}) {
+  await migrateLegacyStorage();
+  const sessions = await readIndex();
   const idx = sessions.findIndex((s) => s.localId === localId);
   if (idx === -1) return;
+
+  const prev = (await readSessionData(localId)) || {};
+  const data = {
+    emgData:        emgData        ?? prev.emgData        ?? [],
+    imuData:        imuData        ?? prev.imuData        ?? [],
+    envelope:       envelope       ?? prev.envelope       ?? [],
+    envelopeParams: envelopeParams ?? prev.envelopeParams ?? null,
+    packetStats:    packetStats    ?? prev.packetStats    ?? null,
+  };
+  const stored = await writeSessionData(localId, data);
+
   sessions[idx] = {
     ...sessions[idx],
     endTime,
     duration,
     mvc: mvc ?? sessions[idx].mvc,
     alertCount,
-    emgData: emgData ?? sessions[idx].emgData ?? [],
-    imuData: imuData ?? sessions[idx].imuData ?? [],
-    envelope: envelope ?? sessions[idx].envelope ?? [],
-    envelopeParams: envelopeParams ?? sessions[idx].envelopeParams ?? null,
-    packetStats: packetStats ?? sessions[idx].packetStats ?? null,
+    hasLocalData: stored,
+    detailLoaded: stored,
     synced: false, // força reenvio do estado final ao backend
   };
-  await writeSessions(sessions);
+  await writeIndex(sessions);
 }
 
-// Sincroniza (se houver token) e devolve as sessões locais ordenadas da mais recente para a mais antiga.
+// Sincroniza (se houver token) e devolve as sessões locais,
+// ordenadas da mais recente para a mais antiga.
 async function getMergedSessions(token) {
+  await migrateLegacyStorage();
   if (token) await trySyncAll(token);
-  const sessions = await readSessions();
+  const sessions = await readIndex();
   return sessions.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
 }
 
-// Puxa sessões do backend: adiciona localmente as novas e remove as que já foram sincronizadas
+// Devolve uma sessão completa
+async function getSessionDetail(token, localId) {
+  await migrateLegacyStorage();
+  const sessions = await readIndex();
+  const entry = sessions.find((s) => s.localId === localId);
+  if (!entry) return null;
+
+  let data = await readSessionData(localId);
+  const isEmpty = !data || (
+    (!data.emgData || data.emgData.length === 0) &&
+    (!data.imuData || data.imuData.length === 0) &&
+    (!data.envelope || data.envelope.length === 0)
+  );
+
+  if (isEmpty && entry.backendId && token && (await hasInternet())) {
+    try {
+      const res = await api.getSession(token, entry.backendId);
+      if (res?.success && res?.session) {
+        const r = res.session;
+        data = {
+          emgData:        Array.isArray(r.emgData) ? r.emgData : [],
+          imuData:        Array.isArray(r.imuData) ? r.imuData : [],
+          envelope:       Array.isArray(r.envelope) ? r.envelope : [],
+          envelopeParams: r.envelopeParams ?? null,
+          packetStats:    r.packetStats ?? null,
+        };
+        await writeSessionData(localId, data);
+        const fresh = await readIndex();
+        const i = fresh.findIndex((s) => s.localId === localId);
+        if (i !== -1) {
+          fresh[i] = { ...fresh[i], hasLocalData: true, detailLoaded: true };
+          await writeIndex(fresh);
+        }
+      } else {
+        console.warn('[syncService] getSession sem sucesso:', res?.message);
+      }
+    } catch (e) {
+      console.warn('[syncService] Falha ao obter detalhe da sessão:', e?.message || e);
+    }
+  }
+
+  return {
+    ...entry,
+    emgData:        data?.emgData ?? [],
+    imuData:        data?.imuData ?? [],
+    envelope:       data?.envelope ?? [],
+    envelopeParams: data?.envelopeParams ?? null,
+    packetStats:    data?.packetStats ?? null,
+  };
+}
+
+// Puxa sessões do backend, adiciona localmente as novas e remove as que já
+// tinham sido sincronizadas e deixaram de existir no servidor
 async function pullRemoteSessions(token) {
+  let res;
   try {
-    const res = await api.getSessions(token);
-    if (!res?.success || !Array.isArray(res.sessions)) return;
+    res = await api.getSessions(token);
+  } catch (e) {
+    lastSyncError = `Falha ao obter sessões do servidor: ${e?.message || e}`;
+    console.warn('[syncService]', lastSyncError);
+    return;
+  }
 
+  if (!res?.success || !Array.isArray(res.sessions)) {
+    lastSyncError = res?.message || 'Resposta inválida do servidor ao listar sessões.';
+    console.warn('[syncService]', lastSyncError, res);
+    return;
+  }
+
+  try {
     const pendingDeletes = new Set(await readPendingDeletes());
-    const remoteSessions = res.sessions.filter((remote) => !pendingDeletes.has(remote._id));
+    const remoteSessions = res.sessions.filter((r) => !pendingDeletes.has(r._id));
 
-    const local = await readSessions();
-    const knownBackendIds = new Set(local.filter((s) => s.backendId).map((s) => s.backendId));
-    const remoteIds = new Set(remoteSessions.map((remote) => remote._id));
+    const local = await readIndex();
+    const byBackendId = new Map(local.filter((s) => s.backendId).map((s) => [s.backendId, s]));
+    const remoteIds = new Set(remoteSessions.map((r) => r._id));
 
     const newOnes = remoteSessions
-      .filter((remote) => !knownBackendIds.has(remote._id))
-      .map((remote) => ({
+      .filter((r) => !byBackendId.has(r._id))
+      .map((r) => ({
         localId: generateLocalId(),
-        backendId: remote._id,
+        backendId: r._id,
         synced: true,
-        sensorType: remote.sensorType,
-        startTime: remote.startTime,
-        endTime: remote.endTime ?? null,
-        duration: remote.duration ?? null,
-        mvc: remote.mvc ?? null,
-        alertCount: remote.alertCount ?? 0,
-        emgData: remote.emgData ?? [],
-        envelope: remote.envelope ?? [],
-        envelopeParams: remote.envelopeParams ?? null,
-        imuData: remote.imuData ?? [],
-        packetStats: remote.packetStats ?? null,
+        hasLocalData: false,
+        detailLoaded: false,
+        sensorType: r.sensorType,
+        startTime: r.startTime,
+        endTime: r.endTime ?? null,
+        duration: r.duration ?? null,
+        mvc: r.mvc ?? null,
+        alertCount: r.alertCount ?? 0,
       }));
 
-    // Sessões já sincronizadas (com backendId) que deixaram de existir no backend são removidas localmente 
+    // Sessões já sincronizadas que deixaram de existir no backend saem daqui
+    const removed = local.filter((s) => s.backendId && !remoteIds.has(s.backendId));
     const stillValid = local.filter((s) => !s.backendId || remoteIds.has(s.backendId));
+    for (const s of removed) await removeSessionData(s.localId);
 
     if (newOnes.length > 0 || stillValid.length !== local.length) {
-      await writeSessions([...newOnes, ...stillValid]);
+      await writeIndex([...newOnes, ...stillValid]);
     }
-  } catch {
+    lastSyncError = null;
+  } catch (e) {
+    lastSyncError = e?.message || String(e);
+    console.warn('[syncService] Falha ao juntar sessões remotas:', e);
   }
 }
 
 // Apaga a sessão localmente e, se já existia no backend, tenta apagá-la lá também
 // Se falhar, fica na fila de eliminações pendentes
 async function deleteSession(token, localId) {
-  const sessions = await readSessions();
+  const sessions = await readIndex();
   const target = sessions.find((s) => s.localId === localId);
-  await writeSessions(sessions.filter((s) => s.localId !== localId));
+  await writeIndex(sessions.filter((s) => s.localId !== localId));
+  await removeSessionData(localId);
 
   if (!target?.backendId) return;
 
@@ -203,8 +354,7 @@ async function deleteSession(token, localId) {
     try {
       const res = await api.deleteSession(token, target.backendId);
       if (res?.success) return;
-    } catch {
-    }
+    } catch {}
   }
 
   const pending = await readPendingDeletes();
@@ -230,10 +380,11 @@ async function syncPendingDeletes(token) {
   }
   await writePendingDeletes(stillPending);
 }
-// Envia ao backend as sessões locais por sincronizar: cria as que faltam criar e fecha as que já têm endTime.
+
+// Envia ao backend as sessões locais por sincronizar
 async function syncSessions(token) {
   if (!token) return;
-  const sessions = await readSessions();
+  const sessions = await readIndex();
   let changed = false;
 
   const mod = await readModule();
@@ -254,32 +405,40 @@ async function syncSessions(token) {
           s.backendId = res.session._id;
           changed = true;
         } else {
-          continue; 
+          lastSyncError = res?.message || 'Backend recusou criar a sessão.';
+          console.warn('[syncService]', lastSyncError);
+          continue;
         }
       }
 
       if (s.endTime) {
+        const data = (await readSessionData(s.localId)) || {};
         const res2 = await api.endSession(token, s.backendId, {
           endTime: s.endTime,
           duration: s.duration,
           mvc: s.mvc,
           alertCount: s.alertCount,
-          emgData: s.emgData || [],
-          envelope: s.envelope || [],
-          envelopeParams: s.envelopeParams || null,
-          imuData: s.imuData || [],
-          packetStats: s.packetStats || null,
+          emgData: data.emgData || [],
+          envelope: data.envelope || [],
+          envelopeParams: data.envelopeParams || null,
+          imuData: data.imuData || [],
+          packetStats: data.packetStats || null,
         });
         if (res2?.success) {
           s.synced = true;
           changed = true;
+        } else {
+          lastSyncError = res2?.message || 'Backend recusou fechar a sessão.';
+          console.warn('[syncService]', lastSyncError);
         }
       }
-    } catch {
+    } catch (e) {
+      lastSyncError = e?.message || String(e);
+      console.warn('[syncService] Falha ao sincronizar sessão:', e);
     }
   }
 
-  if (changed) await writeSessions(sessions);
+  if (changed) await writeIndex(sessions);
 }
 
 // Módulo 
@@ -353,19 +512,23 @@ async function syncModule(token) {
   }
 }
 
-// Sincronização geral 
-
-//Corre toda a sincronização por ordem garantindo que nunca há duas sincronizações em paralelo
+// Corre toda a sincronização por ordem, garantindo que nunca há duas em paralelo.
 async function trySyncAll(token) {
   if (syncPromise) return syncPromise;
   if (!token) return;
 
   syncPromise = (async () => {
     try {
-      if (!(await hasInternet())) return;
-      if (!moduleService.isMonitoring()) {
+      await migrateLegacyStorage();
+      if (!moduleService.isMonitoring() && moduleService.isConnected()) {
         await moduleService.disconnect();
       }
+
+      if (!(await hasInternet())) {
+        console.log('[syncService] Sem internet real — sincronização adiada.');
+        return;
+      }
+
       await syncModule(token);
       await syncSessions(token);
       await syncPendingDeletes(token);
@@ -378,10 +541,10 @@ async function trySyncAll(token) {
   return syncPromise;
 }
 
-// Regista o listener de rede que dispara a sincronização sempre que a internet fica acessível
+// Regista o listener de rede que dispara a sincronização quando a internet fica acessível
 function initNetworkListener(getToken) {
   tokenGetter = getToken;
-  if (netUnsubscribe) return; // já registado, só atualiza o tokenGetter acima
+  if (netUnsubscribe) return;
 
   netUnsubscribe = NetInfo.addEventListener((state) => {
     if (state.isInternetReachable) {
@@ -402,6 +565,7 @@ export const syncService = {
   queueNewSession,
   queueSessionEnd,
   getMergedSessions,
+  getSessionDetail,
   deleteSession,
   queueModuleSave,
   queueModuleUpdate,

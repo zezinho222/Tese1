@@ -70,7 +70,7 @@ export default function HistoryPage({ navigation }) {
     }
   };
 
-  useFocusEffect(useCallback(() => { loadSessions(); }, []));
+  useFocusEffect(useCallback(() => { loadSessions(); }, [token]));
 
   // Apagar sessão
   const handleDeleteSession = async () => {

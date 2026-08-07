@@ -1,56 +1,104 @@
 const API_URL = 'https://tese1.onrender.com';
 
+// Timeout dos pedidos normais
+const REQUEST_TIMEOUT_MS = 60000;
+// Timeout do teste de conectividade
+const PING_TIMEOUT_MS = 8000;
+
 // Chamado sempre que o backend rejeita o token (expirado/inválido), para a
 // app poder fazer logout e pedir novo login em vez de falhar em silêncio
-// para sempre
 let onUnauthorized = null;
 const setOnUnauthorized = (fn) => { onUnauthorized = fn; };
 
-// Faz um pedido autenticado à API (com token no header) e devolve o JSON
-// se receber 401, chama o callback de logout
+// fetch com timeout, sem isto um pedido pode falhar para sempre
+// e a página fica com o spinner infinito ou falha sem qualquer pista
+const fetchWithTimeout = async (url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) => {
+  if (typeof AbortController === 'undefined') {
+    return fetch(url, options);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+// Lê o corpo como JSON
+const parseJson = async (res, path) => {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.warn(`[api] Resposta não-JSON em ${path} (HTTP ${res.status}):`, text.slice(0, 200));
+    return { success: false, message: `Resposta inválida do servidor (HTTP ${res.status}).` };
+  }
+};
+
+// Faz um pedido autenticado à API e devolve o JSON.
+// Se receber 401, chama o callback de logout.
 const authFetch = async (path, token, options = {}) => {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
-  if (res.status === 401) onUnauthorized?.();
-  return res.json();
+  try {
+    const res = await fetchWithTimeout(`${API_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {}),
+      },
+    });
+    if (res.status === 401) onUnauthorized?.();
+    return await parseJson(res, path);
+  } catch (e) {
+    const message = e?.name === 'AbortError'
+      ? 'O servidor demorou demasiado a responder.'
+      : (e?.message || String(e));
+    console.warn(`[api] Falha em ${path}:`, message);
+    return { success: false, message };
+  }
 };
 
 // API de backend
-// Toda a app faz pedidos a esta API, em vez de espalhar fetch() por todo o lado
-// Assim, se a API mudar de URL ou de formato, só é preciso alterar aqui
 export const api = {
+  // Teste de conectividade real (usado pelo syncService)
+  ping: async () => {
+    const targets = [`${API_URL}/`, 'https://www.gstatic.com/generate_204'];
+    for (const url of targets) {
+      try {
+        const res = await fetchWithTimeout(url, { method: 'GET' }, PING_TIMEOUT_MS);
+        if (res.ok || res.status === 204) return true;
+      } catch {}
+    }
+    return false;
+  },
+
   // Autenticação
   register: async ({ name, email, phone, password }) => {
-    const res = await fetch(`${API_URL}/api/auth/register`, {
+    const res = await fetchWithTimeout(`${API_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, phone: phone || null, password }),
     });
-    return res.json();
+    return parseJson(res, '/api/auth/register');
   },
 
   login: async ({ email, password }) => {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
+    const res = await fetchWithTimeout(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    return res.json();
+    return parseJson(res, '/api/auth/login');
   },
 
   forgotPassword: async ({ email }) => {
-    const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+    const res = await fetchWithTimeout(`${API_URL}/api/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     });
-    return res.json();
+    return parseJson(res, '/api/auth/forgot-password');
   },
 
   // Perfil utilizador
@@ -97,8 +145,13 @@ export const api = {
     }),
 
   // Sessões
+  // Lista leve: sem emgData/imuData/envelope
   getSessions: async (token) =>
     authFetch('/api/sessions', token),
+
+  // Sessão completa, com os sinais, só usada ao abrir o detalhe de uma sessão
+  getSession: async (token, sessionId) =>
+    authFetch(`/api/sessions/${sessionId}`, token),
 
   createSession: async (token, { sensorType, startTime, endTime, duration, mvc, alertCount, module }) =>
     authFetch('/api/sessions', token, {
