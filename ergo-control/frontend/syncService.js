@@ -13,6 +13,9 @@ let syncPromise    = null;
 let netUnsubscribe = null;
 let tokenGetter    = () => null;
 let lastSyncError  = null;
+let syncAdiada     = false;
+let ultimaTentativa = 0;
+const NET_DEBOUNCE_MS = 5000;
 
 // Campos pesados que NUNCA podem ficar no índice
 const HEAVY_FIELDS = ['emgData', 'imuData', 'envelope', 'envelopeParams', 'packetStats'];
@@ -520,14 +523,12 @@ async function trySyncAll(token) {
   syncPromise = (async () => {
     try {
       await migrateLegacyStorage();
-      if (!moduleService.isMonitoring() && moduleService.isConnected()) {
-        await moduleService.disconnect();
-      }
-
       if (!(await hasInternet())) {
-        console.log('[syncService] Sem internet real — sincronização adiada.');
+        if (!syncAdiada) console.log('[syncService] Sem internet real — sincronização adiada.');
+        syncAdiada = true;
         return;
       }
+      syncAdiada = false;
 
       await syncModule(token);
       await syncSessions(token);
@@ -547,9 +548,17 @@ function initNetworkListener(getToken) {
   if (netUnsubscribe) return;
 
   netUnsubscribe = NetInfo.addEventListener((state) => {
-    if (state.isInternetReachable) {
-      trySyncAll(tokenGetter());
-    }
+    if (!state.isInternetReachable) return;
+    const agora = Date.now();
+    if (agora - ultimaTentativa < NET_DEBOUNCE_MS) return;
+    ultimaTentativa = agora;
+    trySyncAll(tokenGetter());
+  });
+
+  // Assim que o módulo se desliga, o telemóvel volta à rede normal
+  moduleService.addCloseListener('sync', () => {
+    if (!syncAdiada) return;
+    setTimeout(() => trySyncAll(tokenGetter()), 1500);
   });
 }
 
@@ -559,6 +568,7 @@ function stopNetworkListener() {
     netUnsubscribe();
     netUnsubscribe = null;
   }
+  moduleService.removeCloseListener('sync');
 }
 
 export const syncService = {

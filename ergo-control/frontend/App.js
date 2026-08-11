@@ -42,7 +42,8 @@ function RootNavigator() {
 
   // Manda uma notificação se o módulo se desligar inesperadamente
   useEffect(() => {
-    moduleService.addCloseListener('app', () => {
+    moduleService.addCloseListener('app', ({ expected } = {}) => {
+      if (expected) return;   // fecho pedido pela app, não é uma queda
       notificationService.notifyDevice(
         'Módulo desligou-se',
         'A ligação à rede Wi-Fi do módulo foi perdida.'
