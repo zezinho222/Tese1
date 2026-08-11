@@ -18,7 +18,7 @@ import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import moduleService from '../moduleService';
 import syncService from '../syncService';
-import { calculateMVC } from '../utils/emgProcessing';
+import { calculateMVC, DEFAULT_WINDOW_MS } from '../utils/emgProcessing';
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
 
@@ -160,13 +160,12 @@ export default function CalibratePage({ navigation }) {
       setCalStep(CAL_ACQUIRING);
       startDotAnim();
       startCountdown(5, () => {
-        // Após 5s mostra "Pare o MVC", espera 3s
         stopDotAnim();
+        const buffer = moduleService.stopCalibration();
         setCalStep(CAL_STOPPING);
         startCountdown(3, () => {
           // Após 3s envia IDLE e calcula MVC
           moduleService.sendCommand('IDLE');
-          const buffer = moduleService.stopCalibration();
           handleSaveMVC(buffer);
         });
       });
@@ -177,10 +176,15 @@ export default function CalibratePage({ navigation }) {
   const handleSaveMVC = async (buffer) => {
     setSaving(true);
     setCalStep(CAL_IDLE);
+    const fs = localModule?.freqHz ?? null;
 
     let mvc = null;
     try {
-      const result = calculateMVC(buffer);
+      const result = calculateMVC(buffer, {
+        fs,
+        windowMs: DEFAULT_WINDOW_MS,
+        percentile: 100,
+      });
       mvc = result.mvc;
     } catch {
       mvc = null;
