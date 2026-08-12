@@ -4,9 +4,9 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import SafeAreaView from '../components/SafeAreaView';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
@@ -129,7 +129,7 @@ export default function DataPage({ navigation }) {
   }, [loadResumo]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
       <View style={styles.header}>
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   header: {
-    flex: 10,
+    flex: 5,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -208,7 +208,6 @@ const styles = StyleSheet.create({
   cardsSection: {
     flex: 20,
     justifyContent: 'space-evenly',
-    marginTop: -80,
   },
   card: {
     backgroundColor: colors.white,

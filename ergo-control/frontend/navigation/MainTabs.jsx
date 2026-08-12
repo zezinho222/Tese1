@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../utils/shared-Styles';
 import DataPage from '../pages/DataPage';
 import ModulesPage from '../pages/ModulesPage';
@@ -28,19 +29,24 @@ const tabIcon = (focusedName, unfocusedName) => ({ focused, color, size }) => (
   />
 );
 
+const TAB_BAR_HEIGHT = 60;
+
 function Tabs() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.text.secondary,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: colors.white,
           borderTopColor: colors.border,
-          paddingBottom: 8,
           paddingTop: 6,
-          height: 60,
+          paddingBottom: 8 + insets.bottom,
+          height: TAB_BAR_HEIGHT + insets.bottom,
         },
         tabBarLabelStyle: {
           fontSize: 12,

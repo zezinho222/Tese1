@@ -4,10 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   useWindowDimensions,
 } from 'react-native';
+import SafeAreaView from '../components/SafeAreaView';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { Ionicons } from '@expo/vector-icons';
 import LiveLineChart from '../components/LiveLineChart';

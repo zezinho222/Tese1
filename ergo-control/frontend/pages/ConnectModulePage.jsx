@@ -4,13 +4,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   Modal,
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import SafeAreaView from '../components/SafeAreaView';
 import Slider from '@react-native-community/slider';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';

@@ -4,13 +4,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   Image,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import SafeAreaView from '../components/SafeAreaView';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-gifted-charts';
 import * as FileSystem from 'expo-file-system/legacy';

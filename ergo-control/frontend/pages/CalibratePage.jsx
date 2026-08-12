@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   Modal,
@@ -12,6 +11,7 @@ import {
   Animated,
   RefreshControl,
 } from 'react-native';
+import SafeAreaView from '../components/SafeAreaView';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';

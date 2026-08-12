@@ -3,9 +3,9 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
 } from 'react-native';
+import SafeAreaView from '../../components/SafeAreaView';
 import { colors, sharedStyles } from '../../utils/shared-Styles';
 
 // Página de boas-vindas

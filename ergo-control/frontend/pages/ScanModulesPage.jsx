@@ -4,12 +4,12 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   ActivityIndicator,
   Animated,
 } from 'react-native';
+import SafeAreaView from '../components/SafeAreaView';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import moduleService from '../moduleService';
 

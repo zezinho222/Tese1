@@ -5,13 +5,13 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   ActivityIndicator,
   Modal,
   Alert,
 } from 'react-native';
+import SafeAreaView from '../components/SafeAreaView';
 import NetInfo from '@react-native-community/netinfo';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';

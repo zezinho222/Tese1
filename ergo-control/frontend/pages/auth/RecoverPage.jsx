@@ -5,11 +5,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import SafeAreaView from '../../components/SafeAreaView';
 import { colors, sharedStyles } from '../../utils/shared-Styles';
 import { api } from '../../api';
 
