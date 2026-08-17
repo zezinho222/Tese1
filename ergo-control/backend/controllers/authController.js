@@ -35,7 +35,7 @@ const sendEmail = async ({ to, subject, html }) => {
 // Registar um novo utilizador
 const register = async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, acceptedTerms, policyVersion } = req.body;
 
     // Validações básicas
     if (!name || !email || !password) {
@@ -49,6 +49,13 @@ const register = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'A password deve ter pelo menos 8 caracteres.',
+      });
+    }
+
+    if (acceptedTerms !== true) {
+      return res.status(400).json({
+        success: false,
+        message: 'É necessário aceitar a Política de Privacidade para criar conta.',
       });
     }
 
@@ -67,6 +74,11 @@ const register = async (req, res) => {
       email: email.toLowerCase().trim(),
       phone: phone ? phone.trim() : null,
       password,
+      consent: {
+        accepted: true,
+        acceptedAt: new Date(),
+        policyVersion: policyVersion || null,
+      },
     });
 
     // Gerar token

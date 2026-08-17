@@ -5,6 +5,7 @@ import WelcomePage  from '../pages/auth/WelcomePage';
 import LoginPage    from '../pages/auth/LoginPage';
 import RegisterPage from '../pages/auth/RegisterPage';
 import RecoverPage  from '../pages/auth/RecoverPage';
+import PrivacyPolicyPage from '../pages/PrivacyPolicyPage';
 
 const Stack = createNativeStackNavigator();
 
@@ -15,6 +16,7 @@ export default function AuthStack() {
       <Stack.Screen name="Login"    component={LoginPage} />
       <Stack.Screen name="Register" component={RegisterPage} />
       <Stack.Screen name="Recover"  component={RecoverPage} />
+      <Stack.Screen name="Privacy"  component={PrivacyPolicyPage} />
     </Stack.Navigator>
   );
 }

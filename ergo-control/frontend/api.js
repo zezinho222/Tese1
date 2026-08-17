@@ -74,11 +74,18 @@ export const api = {
   },
 
   // Autenticação
-  register: async ({ name, email, phone, password }) => {
+  register: async ({ name, email, phone, password, acceptedTerms, policyVersion }) => {
     const res = await fetchWithTimeout(`${API_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone: phone || null, password }),
+      body: JSON.stringify({
+        name,
+        email,
+        phone: phone || null,
+        password,
+        acceptedTerms,
+        policyVersion,
+      }),
     });
     return parseJson(res, '/api/auth/register');
   },
@@ -121,6 +128,12 @@ export const api = {
     authFetch('/api/user/request-password-change', token, {
       method: 'POST',
       body: JSON.stringify({}),
+    }),
+
+  deleteAccount: async (token, { password }) =>
+    authFetch('/api/user/me', token, {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
     }),
 
   // Modulos

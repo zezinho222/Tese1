@@ -7,6 +7,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const moduleRoutes = require('./routes/moduleRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
+const legalRoutes = require('./routes/legalRoutes');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -21,6 +22,8 @@ app.use(express.json({ limit: '20mb' }));
 
 // Servir assets do frontend
 app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
+
+app.use('/', legalRoutes);
 
 // Página de redefinição de password
 app.get('/reset-password/:token', (req, res) => {

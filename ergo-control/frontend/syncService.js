@@ -571,6 +571,16 @@ function stopNetworkListener() {
   moduleService.removeCloseListener('sync');
 }
 
+async function clearAllLocalData() {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const nossas = keys.filter((k) => k.startsWith('@ergocontrol/'));
+    if (nossas.length) await AsyncStorage.multiRemove(nossas);
+  } catch (e) {
+    console.warn('[sync] Falha ao limpar dados locais:', e?.message ?? e);
+  }
+}
+
 export const syncService = {
   queueNewSession,
   queueSessionEnd,
@@ -585,6 +595,7 @@ export const syncService = {
   stopNetworkListener,
   hasInternet,
   downsampleArray,
+  clearAllLocalData,
   getLastSyncError: () => lastSyncError,
 };
 

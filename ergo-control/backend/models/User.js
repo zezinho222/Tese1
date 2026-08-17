@@ -71,6 +71,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    consent: {
+      accepted:      { type: Boolean, default: false },
+      acceptedAt:    { type: Date,    default: null },
+      policyVersion: { type: String,  default: null },
+    },
   },
   {
     timestamps: true,

@@ -2,18 +2,22 @@ import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   StatusBar,
   ScrollView,
   Modal,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import SafeAreaView from '../components/SafeAreaView';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import syncService from '../syncService';
+import { api } from '../api';
 
 // Converte segundos totais de monitorização em algo tipo "38h 20m" ou "45m"
 function formatTotalDuration(totalSeconds) {
@@ -36,6 +40,12 @@ const settings = [
     subtitle: 'Notificações, vibrações',
     route: 'Notifications',
   },
+  {
+    icon: '🔒',
+    title: 'Privacidade',
+    subtitle: 'Política de privacidade e dados',
+    route: 'Privacy',
+  },
 ];
 
 // Página de Perfil
@@ -48,6 +58,12 @@ export default function ProfilePage({ navigation }) {
     { label: 'Monitorizadas', value: '-' },
     { label: 'Alertas', value: '-' },
   ]);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteStep, setDeleteStep] = useState(1);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   // Carrega estatísticas de sessões e alertas do utilizador
   const loadStats = useCallback(async () => {
@@ -68,6 +84,40 @@ export default function ProfilePage({ navigation }) {
   }, [token]);
 
   useFocusEffect(useCallback(() => { loadStats(); }, [loadStats]));
+
+  const closeDeleteModal = () => {
+    if (deleting) return;
+    setShowDeleteModal(false);
+    setDeleteStep(1);
+    setDeletePassword('');
+    setDeleteError('');
+  };
+
+  // Pede a password ao utilizador antes de eliminar
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      setDeleteError('Introduza a sua password.');
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      const data = await api.deleteAccount(token, { password: deletePassword });
+
+      if (!data.success) {
+        setDeleteError(data.message || 'Não foi possível eliminar a conta.');
+        return;
+      }
+
+      await syncService.clearAllLocalData();
+      await logout();
+    } catch {
+      setDeleteError('Erro de ligação. Tente novamente.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const initials = user?.name
     ?.split(' ')
@@ -129,8 +179,16 @@ export default function ProfilePage({ navigation }) {
           <Text style={sharedStyles.redText}>Terminar Sessão</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[sharedStyles.redButton, styles.logoutBtn, styles.deleteBtn]}
+          onPress={() => setShowDeleteModal(true)}
+        >
+          <Text style={sharedStyles.redText}>Eliminar Conta</Text>
+        </TouchableOpacity>
+
       </ScrollView>
 
+      {/* Terminar sessão */}
       <Modal
         visible={showLogoutModal}
         transparent
@@ -164,6 +222,118 @@ export default function ProfilePage({ navigation }) {
 
           </TouchableOpacity>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Eliminar conta */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDeleteModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={styles.overlay}
+            activeOpacity={1}
+            onPress={closeDeleteModal}
+          >
+            <TouchableOpacity style={styles.modalCard} activeOpacity={1}>
+
+              {deleteStep === 1 ? (
+                <>
+                  <Text style={styles.modalTitle}>Tem a certeza que quer{'\n'}eliminar a conta?</Text>
+
+                  <View style={styles.warningBox}>
+                    <Text style={styles.warningText}>
+                      Esta ação é irreversível. São eliminados de forma
+                      definitiva a sua conta, todas as sessões de monitorização
+                      e todos os módulos associados, tanto no servidor como
+                      neste dispositivo.
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[sharedStyles.primaryButton, sharedStyles.confirmButton, styles.modalBtn]}
+                    onPress={() => setDeleteStep(2)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={sharedStyles.confirmButtonText}>Sim, tenho!</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[sharedStyles.primaryButton, sharedStyles.cancelButton, styles.modalBtn]}
+                    onPress={closeDeleteModal}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={sharedStyles.cancelButtonText}>Não, cancelar!</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.modalTitle}>Confirme a sua password</Text>
+
+                  <Text style={styles.modalSubtitle}>
+                    Para eliminar a conta, introduza a password que usa para
+                    entrar na aplicação.
+                  </Text>
+
+                  <TextInput
+                    style={[
+                      sharedStyles.input,
+                      styles.passwordInput,
+                      deleteError && styles.inputError,
+                    ]}
+                    placeholder="Password"
+                    placeholderTextColor={colors.text.placeholder}
+                    value={deletePassword}
+                    onChangeText={(v) => { setDeletePassword(v); setDeleteError(''); }}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!deleting}
+                  />
+
+                  {deleteError ? (
+                    <Text style={styles.modalError}>{deleteError}</Text>
+                  ) : null}
+
+                  <TouchableOpacity
+                    style={[
+                      sharedStyles.primaryButton,
+                      sharedStyles.confirmButton,
+                      styles.modalBtn,
+                      (!deletePassword || deleting) && sharedStyles.buttonDisabled,
+                    ]}
+                    onPress={handleDeleteAccount}
+                    disabled={!deletePassword || deleting}
+                    activeOpacity={0.85}
+                  >
+                    {deleting ? (
+                      <ActivityIndicator color={colors.white} />
+                    ) : (
+                      <Text style={sharedStyles.confirmButtonText}>
+                        Eliminar definitivamente
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[sharedStyles.primaryButton, sharedStyles.cancelButton, styles.modalBtn]}
+                    onPress={closeDeleteModal}
+                    disabled={deleting}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={sharedStyles.cancelButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
     </SafeAreaView>
@@ -275,6 +445,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 0,
     marginTop: 0,
   },
+  deleteBtn: {
+    marginTop: 12,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.text.red,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -299,9 +475,41 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     marginBottom: 4,
   },
+  modalSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginTop: -8,
+  },
   modalBtn: {
     marginHorizontal: 0,
     marginTop: 0,
     paddingVertical: 15,
+  },
+  warningBox: {
+    backgroundColor: colors.redBackground,
+    borderRadius: 12,
+    padding: 14,
+  },
+  warningText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text.red,
+    fontWeight: '500',
+  },
+  passwordInput: {
+    marginTop: 2,
+  },
+  inputError: {
+    borderColor: colors.text.red,
+    backgroundColor: colors.redBackground,
+  },
+  modalError: {
+    fontSize: 13,
+    color: colors.text.red,
+    textAlign: 'center',
+    marginTop: -6,
+    fontWeight: '500',
   },
 });

@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const User = require('../models/User');
+const Session = require('../models/Session');
+const Module = require('../models/Module');
 
 // Função auxiliar para enviar email
 const sendEmail = async ({ to, subject, html }) => {
@@ -257,6 +259,45 @@ const verifyPasswordChange = async (req, res) => {
   }
 };
 
+// Elimina de forma definitiva a conta e todos os dados associados
+const deleteAccount = async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'A password é obrigatória para eliminar a conta.',
+      });
+    }
+
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Utilizador não encontrado.' });
+    }
+
+    const passwordCorreta = await user.comparePassword(password);
+    if (!passwordCorreta) {
+      return res.status(403).json({
+        success: false,
+        message: 'Password incorreta.',
+      });
+    }
+
+    await Session.deleteMany({ user: user._id });
+    await Module.deleteMany({ user: user._id });
+    await User.findByIdAndDelete(user._id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Conta e todos os dados associados eliminados com sucesso.',
+    });
+  } catch (error) {
+    console.error('Erro ao eliminar conta:', error);
+    res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -264,4 +305,5 @@ module.exports = {
   verifyEmailChange,
   requestPasswordChange,
   verifyPasswordChange,
+  deleteAccount,
 };

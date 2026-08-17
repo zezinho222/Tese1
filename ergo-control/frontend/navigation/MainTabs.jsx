@@ -16,7 +16,7 @@ import NotificationsPage from '../pages/NotificationsPage';
 import ConnectModulePage from '../pages/ConnectModulePage';
 import ScanModulesPage   from '../pages/ScanModulesPage';
 import ChartFullscreenPage from '../pages/ChartFullscreenPage';
-
+import PrivacyPolicyPage from '../pages/PrivacyPolicyPage';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -74,6 +74,7 @@ export default function MainTabs() {
       <Stack.Screen name="ConnectModule" component={ConnectModulePage} />
       <Stack.Screen name="ScanModules"   component={ScanModulesPage} />
       <Stack.Screen name="ChartFullscreen" component={ChartFullscreenPage} options={{ orientation: 'landscape', animation: 'fade' }} />
+      <Stack.Screen name="Privacy" component={PrivacyPolicyPage} />
     </Stack.Navigator>
   );
 }

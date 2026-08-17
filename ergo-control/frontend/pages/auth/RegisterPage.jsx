@@ -13,6 +13,7 @@ import {
 import SafeAreaView from '../../components/SafeAreaView';
 import { colors, sharedStyles } from '../../utils/shared-Styles';
 import { api } from '../../api';
+import { POLICY_VERSION } from '../../utils/privacyPolicy';
 
 const Field = ({ field, placeholder, secure, keyboard, form, setForm, errors }) => {
   const set = (value) => setForm((f) => ({ ...f, [field]: value }));
@@ -49,6 +50,7 @@ export default function RegisterPage({ navigation }) {
     password: '',
     confirmPassword: '',
   });
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -59,6 +61,7 @@ export default function RegisterPage({ navigation }) {
     if (!form.email.includes('@')) e.email = 'Email inválido';
     if (form.password.length < 8) e.password = 'Mínimo 8 caracteres';
     if (form.password !== form.confirmPassword) e.confirmPassword = 'Passwords não coincidem';
+    if (!acceptedTerms) e.terms = 'Tem de aceitar a Política de Privacidade para criar conta';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -68,31 +71,43 @@ export default function RegisterPage({ navigation }) {
     form.name.trim().length > 0 &&
     form.email.includes('@') &&
     form.password.length >= 8 &&
-    form.password === form.confirmPassword;
+    form.password === form.confirmPassword &&
+    acceptedTerms;
 
   const handleRegister = async () => {
-  if (!validate()) return;
-  setLoading(true);
-  try {
-    const data = await api.register({
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
-      password: form.password,
-    });
+    if (!validate()) return;
+    setLoading(true);
+    try {
+      const data = await api.register({
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+        acceptedTerms,
+        policyVersion: POLICY_VERSION,
+      });
 
-    if (!data.success) {
-      setErrors({ general: data.message || 'Erro ao criar conta.' });
-      return;
+      if (!data.success) {
+        setErrors({ general: data.message || 'Erro ao criar conta.' });
+        return;
+      }
+
+      navigation.navigate('Login');
+    } catch (e) {
+      setErrors({ general: 'Erro de ligação. Tente novamente.' });
+    } finally {
+      setLoading(false);
     }
+  };
 
-    navigation.navigate('Login');
-  } catch (e) {
-    setErrors({ general: 'Erro de ligação. Tente novamente.' });
-  } finally {
-    setLoading(false);
-  }
-};
+  // Alterna a checkbox e limpa o erro assim que for aceite
+  const toggleTerms = () => {
+    setAcceptedTerms((prev) => {
+      const next = !prev;
+      if (next) setErrors((e) => ({ ...e, terms: undefined }));
+      return next;
+    });
+  };
 
   const fieldProps = { form, setForm, errors };
 
@@ -127,6 +142,46 @@ export default function RegisterPage({ navigation }) {
             <Field field="phone" placeholder="Telemóvel (Opcional)" keyboard="phone-pad" {...fieldProps} />
             <Field field="password" placeholder="Password (mínimo 8 caracteres)" secure {...fieldProps} />
             <Field field="confirmPassword" placeholder="Confirmar Password" secure {...fieldProps} />
+
+            {/* Consentimento informado (RGPD art. 6.º n.º 1 a) e art. 9.º n.º 2 a) */}
+            <View style={styles.consentBlock}>
+              <View style={styles.consentRow}>
+                <TouchableOpacity
+                  onPress={toggleTerms}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={[
+                    styles.checkbox,
+                    acceptedTerms && styles.checkboxChecked,
+                    errors.terms && styles.checkboxError,
+                  ]}
+                >
+                  {acceptedTerms ? <Text style={styles.checkboxMark}>✓</Text> : null}
+                </TouchableOpacity>
+
+                <Text style={styles.consentText}>
+                  Li e aceito a{' '}
+                  <Text
+                    style={styles.consentLink}
+                    onPress={() => navigation.navigate('Privacy')}
+                  >
+                    Política de Privacidade
+                  </Text>
+                  {' '}e consinto expressamente no tratamento dos meus dados de
+                  saúde (sinais sEMG e IMU) para efeitos de monitorização
+                  ergonómica.
+                </Text>
+              </View>
+
+              {errors.terms ? (
+                <Text style={styles.consentError}>{errors.terms}</Text>
+              ) : null}
+
+              <Text style={styles.consentNote}>
+                Pode retirar este consentimento a qualquer momento, eliminando a
+                conta no ecrã de Perfil.
+              </Text>
+            </View>
 
             {/* Botão azul quando válido, botão cinzento quando não esta valido */}
             <TouchableOpacity
@@ -167,7 +222,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingBottom: 32,
   },
-  
   backArrow: {
     fontSize: 36,
     fontWeight: '700',
@@ -210,5 +264,61 @@ const styles = StyleSheet.create({
   },
   buttonTextDisabled: {
     color: colors.text.secondary,
+  },
+  consentBlock: {
+    gap: 6,
+    marginTop: 2,
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.cardBg,
+    marginRight: 12,
+    marginTop: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  checkboxError: {
+    borderColor: colors.text.red,
+    backgroundColor: colors.redBackground,
+  },
+  checkboxMark: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 16,
+  },
+  consentText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text.secondary,
+  },
+  consentLink: {
+    color: colors.primary,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  consentError: {
+    fontSize: 12,
+    color: colors.text.red,
+    marginLeft: 34,
+  },
+  consentNote: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.text.placeholder,
+    marginLeft: 34,
   },
 });
