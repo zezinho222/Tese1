@@ -103,6 +103,14 @@ export default function ProfilePage({ navigation }) {
     setDeleting(true);
     setDeleteError('');
     try {
+      const online = await syncService.hasInternet();
+      if (!online) {
+        setDeleteError(
+          'Ligue-se a uma rede Wi-Fi com Internet para conseguir eliminar definitivamente a conta.'
+        );
+        return;
+      }
+
       const data = await api.deleteAccount(token, { password: deletePassword });
 
       if (!data.success) {
