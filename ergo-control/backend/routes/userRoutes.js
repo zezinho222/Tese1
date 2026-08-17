@@ -7,6 +7,7 @@ const {
   verifyEmailChange,
   requestPasswordChange,
   verifyPasswordChange,
+  deleteAccount,
 } = require('../controllers/userController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -16,7 +17,9 @@ router.put('/profile', protect, updateProfile);
 router.post('/request-email-change', protect, requestEmailChange);
 router.post('/request-password-change', protect, requestPasswordChange);
 
-// Rotas de verificação (chamadas a partir da página web no email)
+router.delete('/me', protect, deleteAccount);
+
+// Rotas de verificação
 router.post('/verify-email-change/:token', verifyEmailChange);
 router.post('/verify-password-change/:token', verifyPasswordChange);
 
