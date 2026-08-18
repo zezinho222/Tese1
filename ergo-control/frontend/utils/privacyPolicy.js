@@ -92,12 +92,6 @@ export const POLICY_SECTIONS = [
     ],
   },
   {
-    title: 'Menores',
-    paragraphs: [
-      'A aplicação não se destina a menores de 18 anos. Caso seja menor, o registo só deve ser feito com autorização e acompanhamento do seu representante legal.',
-    ],
-  },
-  {
     title: 'Alterações a esta política',
     paragraphs: [
       `Esta é a versão ${POLICY_VERSION}, de ${POLICY_DATE}. Qualquer alteração relevante será comunicada dentro da aplicação, sendo pedido novo consentimento sempre que a finalidade do tratamento mudar.`,
