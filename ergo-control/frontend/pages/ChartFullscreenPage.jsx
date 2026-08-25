@@ -13,15 +13,17 @@ import { Ionicons } from '@expo/vector-icons';
 import LiveLineChart from '../components/LiveLineChart';
 import { colors } from '../utils/shared-Styles';
 import moduleService from '../moduleService';
+import { ADC_VREF, adcArrayToVolts } from '../utils/emgProcessing';
 
 
 const DISPLAY_POINTS = 40; // número de pontos que mostra no gráfico 
 const REFRESH_MS     = 1000; // intervalo de atualização do gráfico (ms)
-const Y_AXIS_LABEL_WIDTH = 50; // largura do eixo Y do gráfico (5 dígitos: 65535)
+const Y_AXIS_LABEL_WIDTH = 50; // largura do eixo Y do gráfico
 const IMU_Y_AXIS_MAX = 100; // eixo Y do gráfico IMU fixo em [-100, 100]
-const EMG_Y_AXIS_MIN = 0;     // eixo Y do gráfico sEMG fixo na gama completa do ADC
-const EMG_Y_AXIS_MAX = 65535; // (16 bits sem sinal, tal como vem do módulo)
-const EMG_Y_AXIS_TICKS = [65535, 55535, 45535, 35535, 25535, 15535, 0];
+const EMG_Y_AXIS_MIN = 0;        // eixo Y do gráfico sEMG fixo na gama completa do ADC,
+const EMG_Y_AXIS_MAX = ADC_VREF; // expressa em volts: 0 V (código 0) a 3.3 V (código 65535)
+const EMG_Y_AXIS_TICKS = [3.3, 2.75, 2.2, 1.65, 1.1, 0.55, 0];
+const formatVoltsTick = (v) => `${v.toFixed(2)} V`;
 
 const IMU_AXIS_COLORS = [colors.primary, colors.secondary]; // Pitch, Roll
 
@@ -55,8 +57,9 @@ export default function ChartFullscreenPage({ navigation, route }) {
   const chartWidth  = Math.max(width - 48 - Y_AXIS_LABEL_WIDTH, 160);
   const chartHeight = Math.max(height - 160, 120);
 
+  // As amostras chegam em bruto do ADC; o gráfico apresenta-as sempre em volts
   const emgSeries = useMemo(
-    () => [{ data: emgPoints, color: colors.text.yellow }],
+    () => [{ data: adcArrayToVolts(emgPoints), color: colors.text.yellow }],
     [emgPoints]
   );
   const imuSeries = useMemo(
@@ -84,6 +87,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
         minValue={EMG_Y_AXIS_MIN}
         maxValue={EMG_Y_AXIS_MAX}
         yAxisTicks={EMG_Y_AXIS_TICKS}
+        formatYLabel={formatVoltsTick}
         axisTextStyle={styles.axisText}
         yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
         axisColor={colors.border}
@@ -118,7 +122,7 @@ export default function ChartFullscreenPage({ navigation, route }) {
     );
   };
 
-  const title = type === 'EMG' ? '⚡ sEMG - Atividade Muscular' : '🧭 IMU - Dados de Movimento';
+  const title = type === 'EMG' ? '⚡ sEMG - Atividade Muscular (V)' : '🧭 IMU - Dados de Movimento';
 
   return (
     <SafeAreaView style={styles.container}>

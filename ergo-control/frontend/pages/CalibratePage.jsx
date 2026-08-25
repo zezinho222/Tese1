@@ -18,7 +18,7 @@ import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import moduleService from '../moduleService';
 import syncService from '../syncService';
-import { calculateMVC, DEFAULT_WINDOW_MS } from '../utils/emgProcessing';
+import { calculateMVC, DEFAULT_WINDOW_MS, adcToVolts } from '../utils/emgProcessing';
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
 
@@ -216,7 +216,7 @@ export default function CalibratePage({ navigation }) {
       setCalError('Não chegaram dados do módulo durante a aquisição. Se houve uma perda de Wi-Fi recente, desliga e volta a conectar o módulo e tenta novamente.');
       setCalStep(CAL_IDLE);
     } else {
-      setCalError('MVC inválido (0.0000). Confirma que o sensor está bem colocado e repete a calibração.');
+      setCalError('MVC inválido (0.0000 V). Confirma que o sensor está bem colocado e repete a calibração.');
       setCalStep(CAL_IDLE);
     }
   };
@@ -296,7 +296,7 @@ export default function CalibratePage({ navigation }) {
                     <Text style={styles.cardTitle}>sEMG</Text>
                     <Text style={styles.cardSubtitle}>{TYPE_META.sEMG.subtitle}</Text>
                     {emgCalibrated && localModule.mvc != null && (
-                      <Text style={styles.mvcText}>MVC: {localModule.mvc.toFixed(4)}</Text>
+                      <Text style={styles.mvcText}>MVC: {adcToVolts(localModule.mvc).toFixed(4)} V</Text>
                     )}
                   </View>
                   {emgCalibrated ? (
@@ -431,7 +431,7 @@ export default function CalibratePage({ navigation }) {
                 <Text style={[sharedStyles.helperText, { textAlign: 'center', fontStyle: 'normal' }]}>
                   MVC:{' '}
                   <Text style={{ fontWeight: '700', color: colors.text.primary }}>
-                    {localModule.mvc.toFixed(4)}
+                    {adcToVolts(localModule.mvc).toFixed(4)} V
                   </Text>
                 </Text>
               </View>

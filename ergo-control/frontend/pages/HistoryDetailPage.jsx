@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,20 +22,22 @@ import syncService from '../syncService';
 import { buildSessionCsv, buildSessionPdfHtml } from '../utils/exportUtils';
 import { buildTimeAxisLabels } from '../utils/chartAxis';
 import { formatGap, expandMissingIds } from '../utils/packetLoss';
+import { ADC_VREF, adcArrayToVolts, adcToVolts } from '../utils/emgProcessing';
 import ChartTimeAxis from '../components/ChartTimeAxis';
 import SignalChart from '../components/SignalChart';
 import ExcelIcon from '../assets/excel.png';
 import PdfIcon from '../assets/pdf.png';
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
-const Y_AXIS_LABEL_WIDTH = 50; // 5 dígitos (65535) precisam de mais espaço que o default
+const Y_AXIS_LABEL_WIDTH = 50;
 const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2 - Y_AXIS_LABEL_WIDTH;
 
-const EMG_Y_AXIS_MAX  = 65535;
+// Eixo Y do sEMG fixo na gama completa do ADC, expressa em volts (0 a 3.3 V)
+const EMG_Y_AXIS_MAX  = ADC_VREF;
 const EMG_Y_SECTIONS  = 4;
 const EMG_Y_AXIS_LABELS = Array.from(
   { length: EMG_Y_SECTIONS + 1 },
-  (_, i) => String(Math.round(EMG_Y_AXIS_MAX - (EMG_Y_AXIS_MAX * i) / EMG_Y_SECTIONS))
+  (_, i) => `${(EMG_Y_AXIS_MAX - (EMG_Y_AXIS_MAX * i) / EMG_Y_SECTIONS).toFixed(2)} V`
 );
 const EMG_CHART_TOTAL_WIDTH = CHART_WIDTH + Y_AXIS_LABEL_WIDTH;
 
@@ -97,6 +99,10 @@ export default function HistoryDetailPage({ navigation, route }) {
 }, [sessionId, token]);
 
   useFocusEffect(useCallback(() => { loadSession(); }, [loadSession]));
+  const emgDataVolts = useMemo(
+    () => adcArrayToVolts(Array.isArray(session?.emgData) ? session.emgData : []),
+    [session?.emgData]
+  );
 
   if (loading) {
     return (
@@ -238,7 +244,7 @@ export default function HistoryDetailPage({ navigation, route }) {
     return (
       <>
         <SignalChart
-          series={[{ data: emgData, color: colors.text.yellow }]}
+          series={[{ data: emgDataVolts, color: colors.text.yellow }]}
           width={EMG_CHART_TOTAL_WIDTH}
           height={90}
           minValue={0}
@@ -531,7 +537,7 @@ export default function HistoryDetailPage({ navigation, route }) {
         {/* sEMG - Resumo da Sessão */}
         {showEMG && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
-            <Text style={styles.graphTitle}>sEMG - Resumo da Sessão</Text>
+            <Text style={styles.graphTitle}>sEMG - Resumo da Sessão (V)</Text>
             <View style={styles.graphAreaReal}>
               {renderEmgLine()}
             </View>

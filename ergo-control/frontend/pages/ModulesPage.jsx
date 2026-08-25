@@ -17,6 +17,7 @@ import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import syncService from '../syncService';
+import { adcToVolts } from '../utils/emgProcessing';
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
 
@@ -170,8 +171,8 @@ export default function ModulesPage({ navigation }) {
                   )}
                   {localModule.mvc != null && (
                     <View style={styles.configItem}>
-                      <Text style={styles.configLabel}>MVC</Text>
-                      <Text style={styles.configValue}>{localModule.mvc.toFixed(2)}</Text>
+                      <Text style={styles.configLabel}>MVC (V)</Text>
+                      <Text style={styles.configValue}>{adcToVolts(localModule.mvc).toFixed(4)} V</Text>
                     </View>
                   )}
                 </View>

@@ -15,6 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import syncService from '../syncService';
+import { adcToVolts } from '../utils/emgProcessing';
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
 const SENSOR_ICONS  = { EMG: '⚡', IMU: '🧭', DUAL: '⚡🧭' };
@@ -189,8 +190,8 @@ export default function HistoryPage({ navigation }) {
                       <>
                         <View style={styles.statDivider} />
                         <View style={styles.statItem}>
-                          <Text style={styles.statValue}>{session.mvc.toFixed(2)}</Text>
-                          <Text style={styles.statLabel}>MVC</Text>
+                          <Text style={styles.statValue}>{adcToVolts(session.mvc).toFixed(4)}</Text>
+                          <Text style={styles.statLabel}>MVC (V)</Text>
                         </View>
                       </>
                     )}

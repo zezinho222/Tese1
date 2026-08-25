@@ -20,7 +20,12 @@ import { colors, sharedStyles } from '../utils/shared-Styles';
 import { useAuth } from '../context/AuthContext';
 import moduleService from '../moduleService';
 import monitoringService from '../monitoringService';
-import { DEFAULT_WINDOW_MS, DEFAULT_OVERLAP_MS } from '../utils/emgProcessing';
+import {
+  DEFAULT_WINDOW_MS,
+  DEFAULT_OVERLAP_MS,
+  adcArrayToVolts,
+  adcToVolts,
+} from '../utils/emgProcessing';
 
 
 const STORAGE_KEY = '@ergocontrol/connected_module';
@@ -55,8 +60,9 @@ export default function MonitoringPage({ navigation }) {
 
   const { isMonitoring, elapsedSec, alertCount, emgPoints, imuPoints } = monState;
 
+  // As amostras chegam em bruto do ADC; o gráfico apresenta-as sempre em volts
   const emgSeries = useMemo(
-    () => [{ data: emgPoints, color: colors.text.yellow }],
+    () => [{ data: adcArrayToVolts(emgPoints), color: colors.text.yellow }],
     [emgPoints]
   );
   const imuSeries = useMemo(
@@ -253,7 +259,7 @@ export default function MonitoringPage({ navigation }) {
         {showEMG && (
           <View style={[sharedStyles.card, styles.sectionCard]}>
             <View style={styles.cardHeader}>
-              <Text style={styles.sectionTitle}>⚡ sEMG - Atividade Muscular</Text>
+              <Text style={styles.sectionTitle}>⚡ sEMG - Atividade Muscular (V)</Text>
               <TouchableOpacity
                 style={styles.expandBtn}
                 onPress={() => navigation.navigate('ChartFullscreen', { type: 'EMG' })}
@@ -267,7 +273,7 @@ export default function MonitoringPage({ navigation }) {
             </View>
             {emgPoints.length > 0 && (
               <Text style={styles.latestValue}>
-                Último valor: {emgPoints[emgPoints.length - 1]?.toFixed(2)}
+                Último valor: {adcToVolts(emgPoints[emgPoints.length - 1]).toFixed(4)} V
               </Text>
             )}
           </View>

@@ -1,10 +1,9 @@
 import { buildTimeAxisLabels } from './chartAxis';
 import { formatGap } from './packetLoss';
+import { ADC_VREF, adcToVolts, adcArrayToVolts } from './emgProcessing';
 
-// Gama completa do ADC do módulo (16 bits sem sinal). O gráfico sEMG do PDF usa
-// esta escala fixa, igual à do ecrã, para que sessões diferentes sejam comparáveis.
 const EMG_Y_AXIS_MIN = 0;
-const EMG_Y_AXIS_MAX = 65535;
+const EMG_Y_AXIS_MAX = ADC_VREF;
 
 const CHART_COLORS = {
   emg:      '#F59E0B',
@@ -68,7 +67,7 @@ export function buildSessionCsv({
   lines.push(`Duração (s),${durationSec ?? 0}`);
   lines.push(`Sensor,${csvEscape(sensorLabel)}`);
   lines.push(`Alertas,${alertCount ?? 0}`);
-  if (mvc != null) lines.push(`MVC,${mvc}`);
+  if (mvc != null) lines.push(`MVC (V),${adcToVolts(mvc).toFixed(6)}`);
   lines.push('');
 
   // Perda de Pacotes
@@ -104,8 +103,8 @@ export function buildSessionCsv({
 
   if (Array.isArray(emgData) && emgData.length > 0) {
     lines.push('Dados sEMG');
-    lines.push('Amostra,Valor');
-    emgData.forEach((v, i) => lines.push(`${i + 1},${v}`));
+    lines.push('Amostra,Valor (bruto ADC),Valor (V)');
+    emgData.forEach((v, i) => lines.push(`${i + 1},${v},${adcToVolts(v).toFixed(6)}`));
     lines.push('');
   }
 
@@ -255,11 +254,11 @@ export function buildSessionPdfHtml({
   showEMG, showIMU, emgData, imuData, envelope, envelopeParams, packetStats,
 }) {
   const emgChart = showEMG
-    ? svgLineChart([{ data: Array.isArray(emgData) ? emgData : [], color: CHART_COLORS.emg }], {
+    ? svgLineChart([{ data: adcArrayToVolts(emgData), color: CHART_COLORS.emg }], {
         totalSeconds: durationSec,
         minValue: EMG_Y_AXIS_MIN,
         maxValue: EMG_Y_AXIS_MAX,
-        yDecimals: 0,
+        yDecimals: 2, // eixo em volts
         minMax: true, // sinal completo, sem descartar amostras
       })
     : '';
@@ -323,10 +322,10 @@ export function buildSessionPdfHtml({
           <div class="item"><div class="label">Duração</div><div class="value">${durationStr}</div></div>
           <div class="item"><div class="label">Módulos</div><div class="value">${sensorLabel}</div></div>
           <div class="item"><div class="label">Alertas</div><div class="value">${alertCount ?? 0}</div></div>
-          ${mvc != null ? `<div class="item"><div class="label">MVC</div><div class="value">${mvc}</div></div>` : ''}
+          ${mvc != null ? `<div class="item"><div class="label">MVC</div><div class="value">${adcToVolts(mvc).toFixed(4)} V</div></div>` : ''}
         </div>
         ${packetBlock}
-        ${showEMG ? `<h2>sEMG - Resumo da Sessão</h2>${emgChart}` : ''}
+        ${showEMG ? `<h2>sEMG - Resumo da Sessão (V)</h2>${emgChart}` : ''}
         ${hasEnvelope ? `
           <h2>Envelope RMS - Resumo da Sessão</h2>
           ${envelopeChart}

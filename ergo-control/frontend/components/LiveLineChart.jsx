@@ -18,6 +18,7 @@ export default function LiveLineChart({
   noOfSections = 4,
   noOfSectionsBelowZero = 0,
   yAxisTicks,             // valores explícitos para o eixo Y (podem não ser equidistantes)
+  formatYLabel,           // formatação dos rótulos do eixo Y (ex.: volts com 2 casas)
   axisColor = '#ccc',
   rulesColor = '#ccc',
   axisTextStyle,
@@ -59,26 +60,22 @@ export default function LiveLineChart({
     })),
     [series, plotWidth, height, min, range]
   );
-
-  /* Marcas do eixo Y. Quando yAxisTicks é fornecido, cada marca é posicionada na
-     sua altura proporcional real - o que permite escalas não equidistantes, como
-     0, 10000, ..., 60000, 65535, onde o último intervalo é mais curto que os
-     restantes. Sem yAxisTicks mantém-se o comportamento original: noOfSections
-     divisões iguais entre min e max. */
   const ticks = useMemo(() => {
     if (!showAxis) return [];
     const toY = (v) => height - ((v - min) / range) * height;
+    // Sem formatador explícito mantém-se o comportamento original: valor inteiro
+    const label = (v) => (formatYLabel ? formatYLabel(v) : Math.round(v));
 
     if (Array.isArray(yAxisTicks) && yAxisTicks.length > 0) {
-      return yAxisTicks.map((value) => ({ value, y: toY(value) }));
+      return yAxisTicks.map((value) => ({ value: label(value), y: toY(value) }));
     }
 
     const totalSections = Math.max(noOfSections + noOfSectionsBelowZero, 1);
     return Array.from({ length: totalSections + 1 }, (_, i) => ({
-      value: Math.round(max - (i / totalSections) * range),
+      value: label(max - (i / totalSections) * range),
       y: (i / totalSections) * height,
     }));
-  }, [showAxis, yAxisTicks, noOfSections, noOfSectionsBelowZero, min, max, range, height]);
+  }, [showAxis, yAxisTicks, formatYLabel, noOfSections, noOfSectionsBelowZero, min, max, range, height]);
 
   return (
     <View style={styles.row}>
