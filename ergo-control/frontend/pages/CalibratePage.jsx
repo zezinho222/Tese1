@@ -356,7 +356,7 @@ export default function CalibratePage({ navigation }) {
         <View style={styles.overlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalEmoji}>💪</Text>
-            <Text style={styles.modalTitle}>Comece o MVC</Text>
+            <Text style={styles.modalTitle}>Prepara para começar o MVC</Text>
             <Text style={styles.modalSubtitle}>
               Prepara a Máxima Contração Voluntária.{'\n'}A aquisição começa em:
             </Text>

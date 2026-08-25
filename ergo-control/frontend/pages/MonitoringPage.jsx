@@ -262,7 +262,7 @@ export default function MonitoringPage({ navigation }) {
               <Text style={styles.sectionTitle}>⚡ sEMG - Atividade Muscular (V)</Text>
               <TouchableOpacity
                 style={styles.expandBtn}
-                onPress={() => navigation.navigate('ChartFullscreen', { type: 'EMG' })}
+                onPress={() => navigation.navigate('ChartFullscreen', { type: 'EMG', fsEmg: localModule?.freqHz })}
                 activeOpacity={0.7}
               >
                 <Ionicons name="expand-outline" size={18} color={colors.text.secondary} />
@@ -286,7 +286,7 @@ export default function MonitoringPage({ navigation }) {
               <Text style={styles.sectionTitle}>🧭 IMU - Dados de Medição Enercial        </Text>
               <TouchableOpacity
                 style={styles.expandBtn}
-                onPress={() => navigation.navigate('ChartFullscreen', { type: 'IMU' })}
+                onPress={() => navigation.navigate('ChartFullscreen', { type: 'IMU', fsEmg: localModule?.freqHz })}
                 activeOpacity={0.7}
               >
                 <Ionicons name="expand-outline" size={18} color={colors.text.secondary} />

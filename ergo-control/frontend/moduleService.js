@@ -441,11 +441,19 @@ const moduleService = {
     return [...calibBuffer];
   },
 
-  //Devolve só os últimos n pontos de cada buffer (emg/imu), evitando copiar o array todo
+  /* Devolve só os últimos n pontos de cada buffer (emg/imu), evitando copiar o
+     array todo. Aceita um número (mesmo n para os dois buffers) ou um objeto
+     { emg, imu } - necessário porque o sEMG e o IMU são amostrados a
+     frequências diferentes, pelo que uma janela de N segundos corresponde a um
+     nº de amostras diferente em cada um. */
   getRecentBuffers(n) {
+    const isObj = typeof n === 'object' && n !== null;
+    const emgN = isObj ? n.emg : n;
+    const imuN = isObj ? n.imu : n;
+    // slice(-0) devolveria o array inteiro, daí o tratamento explícito do 0
     return {
-      emgBuffer: emgBuffer.slice(-n),
-      imuBuffer: imuBuffer.slice(-n),
+      emgBuffer: emgN > 0 ? emgBuffer.slice(-emgN) : [],
+      imuBuffer: imuN > 0 ? imuBuffer.slice(-imuN) : [],
     };
   },
 
