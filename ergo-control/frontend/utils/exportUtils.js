@@ -1,6 +1,11 @@
 import { buildTimeAxisLabels } from './chartAxis';
 import { formatGap } from './packetLoss';
 
+// Gama completa do ADC do módulo (16 bits sem sinal). O gráfico sEMG do PDF usa
+// esta escala fixa, igual à do ecrã, para que sessões diferentes sejam comparáveis.
+const EMG_Y_AXIS_MIN = 0;
+const EMG_Y_AXIS_MAX = 65535;
+
 const CHART_COLORS = {
   emg:      '#F59E0B',
   pitch:    '#3B82F6',
@@ -20,6 +25,32 @@ function downsampleForChart(arr, maxPoints = 200) {
   const result = [];
   for (let i = 0; i < maxPoints; i++) {
     result.push(arr[Math.floor(i * step)]);
+  }
+  return result;
+}
+
+/*
+ * Percorre TODAS as amostras e devolve, para cada coluna de píxeis, o par
+ * [min, max] das amostras que lhe correspondem. Usado para desenhar sinais
+ * longos (sEMG em bruto) sem descartar amostras nem perder os picos, ao
+ * contrário do downsampleForChart(), que decima por índice.
+ */
+function buildMinMaxColumns(data, columns) {
+  const n = data.length;
+  const result = new Array(columns).fill(null);
+  for (let c = 0; c < columns; c++) {
+    const start = Math.floor((c * n) / columns);
+    let end = Math.floor(((c + 1) * n) / columns);
+    if (end <= start) end = start + 1;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = start; i < end && i < n; i++) {
+      const v = data[i];
+      if (typeof v !== 'number' || Number.isNaN(v)) continue;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    if (lo !== Infinity) result[c] = [lo, hi];
   }
   return result;
 }
@@ -109,16 +140,41 @@ export function buildSessionCsv({
 }
 
 // Fazer um gráfico SVG de linha
-function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = {}) {
-  const padLeft = 44, padRight = 12, padTop = 12, padBottom = 28;
-  const allValues = series.flatMap((s) => s.data).filter((v) => typeof v === 'number' && !Number.isNaN(v));
+function svgLineChart(series, {
+  width = 620,
+  height = 240,
+  totalSeconds = 0,
+  minValue,      // se definido, fixa o limite inferior do eixo Y (em vez de o inferir dos dados)
+  maxValue,      // se definido, fixa o limite superior do eixo Y
+  yDecimals = 1, // casas decimais dos rótulos do eixo Y
+  minMax = false, // desenha por agregação min/max (sinais longos, sem descartar amostras)
+} = {}) {
+  const padLeft = 52, padRight = 12, padTop = 12, padBottom = 28;
+  const hasValues = series.some((s) =>
+    Array.isArray(s.data) && s.data.some((v) => typeof v === 'number' && !Number.isNaN(v))
+  );
 
-  if (allValues.length === 0) {
+  if (!hasValues) {
     return `<div style="width:${width}px;height:${height}px;display:flex;align-items:center;justify-content:center;background:#F3F4F6;border-radius:10px;color:#6B7280;font-size:13px;">Sem dados de gráfico guardados para esta sessão</div>`;
   }
 
-  const min = Math.min(...allValues);
-  const max = Math.max(...allValues);
+  // Calculado em ciclo, e não com Math.min(...arr): com dezenas de milhares
+  // de amostras o spread excede o limite de argumentos e rebenta a stack.
+  let dataMin = Infinity;
+  let dataMax = -Infinity;
+  if (minValue === undefined || maxValue === undefined) {
+    series.forEach((s) => {
+      for (let i = 0; i < s.data.length; i++) {
+        const v = s.data[i];
+        if (typeof v !== 'number' || Number.isNaN(v)) continue;
+        if (v < dataMin) dataMin = v;
+        if (v > dataMax) dataMax = v;
+      }
+    });
+  }
+
+  const min = minValue !== undefined ? minValue : dataMin;
+  const max = maxValue !== undefined ? maxValue : dataMax;
   const range = max - min || 1;
   const n = Math.max(...series.map((s) => s.data.length), 1);
 
@@ -128,13 +184,33 @@ function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = 
 
   const toPoint = (v, i) => {
     const x = padLeft + i * xStep;
-    const y = padTop + plotH - ((v - min) / range) * plotH;
+    // Com eixo fixo, um valor fora da gama sairia da área útil do gráfico
+    const y = padTop + plotH - (Math.min(Math.max((v - min) / range, 0), 1)) * plotH;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   };
 
   const polylines = series
     .map((s) => {
       if (!s.data.length) return '';
+
+      // Agregação min/max: uma barra vertical por coluna de píxeis
+      if (minMax && s.data.length > plotW) {
+        const columns = Math.max(Math.floor(plotW), 1);
+        const cols = buildMinMaxColumns(s.data, columns);
+        const colWidth = plotW / columns;
+        const toY = (v) => {
+          const norm = Math.min(Math.max((v - min) / range, 0), 1);
+          return padTop + plotH - norm * plotH;
+        };
+        let d = '';
+        cols.forEach((col, c) => {
+          if (!col) return;
+          const x = (padLeft + c * colWidth + colWidth / 2).toFixed(2);
+          d += `M${x},${toY(col[1]).toFixed(2)}L${x},${toY(col[0]).toFixed(2)}`;
+        });
+        return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="1" stroke-linecap="butt" />`;
+      }
+
       const points = s.data.map((v, i) => toPoint(v, i)).join(' ');
       return `<polyline points="${points}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />`;
     })
@@ -148,14 +224,19 @@ function svgLineChart(series, { width = 620, height = 240, totalSeconds = 0 } = 
     const v = min + (range * i) / ySections;
     const y = padTop + plotH - (i / ySections) * plotH;
     yGridLines += `<line x1="${padLeft}" y1="${y.toFixed(2)}" x2="${(padLeft + plotW).toFixed(2)}" y2="${y.toFixed(2)}" stroke="#E5E7EB" stroke-width="1" stroke-dasharray="3,3" />`;
-    yLabels += `<text x="${(padLeft - 6).toFixed(2)}" y="${(y + 3).toFixed(2)}" font-size="9" fill="#6B7280" text-anchor="end">${v.toFixed(1)}</text>`;
+    yLabels += `<text x="${(padLeft - 6).toFixed(2)}" y="${(y + 3).toFixed(2)}" font-size="9" fill="#6B7280" text-anchor="end">${v.toFixed(yDecimals)}</text>`;
   }
 
   // Eixo X
+  // Em modo min/max o sinal tem dezenas de milhares de amostras, mas só há uma
+  // coluna por píxel: os rótulos são posicionados sobre as colunas, não sobre
+  // as amostras, para não construir um array gigante.
+  const axisPoints = (minMax && n > plotW) ? Math.max(Math.floor(plotW), 1) : n;
+  const axisStep = axisPoints > 1 ? plotW / (axisPoints - 1) : 0;
   let xLabels = '';
-  buildTimeAxisLabels(n, totalSeconds, 5).forEach((label, i) => {
+  buildTimeAxisLabels(axisPoints, totalSeconds, 5).forEach((label, i) => {
     if (!label) return;
-    const x = padLeft + i * xStep;
+    const x = padLeft + i * axisStep;
     xLabels += `<text x="${x.toFixed(2)}" y="${(height - padBottom + 14).toFixed(2)}" font-size="9" fill="#6B7280" text-anchor="middle">${label}</text>`;
   });
 
@@ -174,7 +255,13 @@ export function buildSessionPdfHtml({
   showEMG, showIMU, emgData, imuData, envelope, envelopeParams, packetStats,
 }) {
   const emgChart = showEMG
-    ? svgLineChart([{ data: downsampleForChart(emgData), color: CHART_COLORS.emg }], { totalSeconds: durationSec })
+    ? svgLineChart([{ data: Array.isArray(emgData) ? emgData : [], color: CHART_COLORS.emg }], {
+        totalSeconds: durationSec,
+        minValue: EMG_Y_AXIS_MIN,
+        maxValue: EMG_Y_AXIS_MAX,
+        yDecimals: 0,
+        minMax: true, // sinal completo, sem descartar amostras
+      })
     : '';
   const imuChartData = downsampleForChart(imuData || []);
   const imuChart = showIMU

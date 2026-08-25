@@ -23,12 +23,21 @@ import { buildSessionCsv, buildSessionPdfHtml } from '../utils/exportUtils';
 import { buildTimeAxisLabels } from '../utils/chartAxis';
 import { formatGap, expandMissingIds } from '../utils/packetLoss';
 import ChartTimeAxis from '../components/ChartTimeAxis';
+import SignalChart from '../components/SignalChart';
 import ExcelIcon from '../assets/excel.png';
 import PdfIcon from '../assets/pdf.png';
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
-const Y_AXIS_LABEL_WIDTH = 38;
+const Y_AXIS_LABEL_WIDTH = 50; // 5 dígitos (65535) precisam de mais espaço que o default
 const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2 - Y_AXIS_LABEL_WIDTH;
+
+const EMG_Y_AXIS_MAX  = 65535;
+const EMG_Y_SECTIONS  = 4;
+const EMG_Y_AXIS_LABELS = Array.from(
+  { length: EMG_Y_SECTIONS + 1 },
+  (_, i) => String(Math.round(EMG_Y_AXIS_MAX - (EMG_Y_AXIS_MAX * i) / EMG_Y_SECTIONS))
+);
+const EMG_CHART_TOTAL_WIDTH = CHART_WIDTH + Y_AXIS_LABEL_WIDTH;
 
 // Formatação de data e hora
 function formatDateOnly(isoStr) {
@@ -125,7 +134,6 @@ export default function HistoryDetailPage({ navigation, route }) {
   // usados só para desenhar a linha
   const emgData = Array.isArray(session.emgData) ? session.emgData : [];
   const imuData = Array.isArray(session.imuData) ? session.imuData : [];
-  const emgChartData = syncService.downsampleArray(emgData);
   const imuChartData = syncService.downsampleArray(imuData);
 
   const packetStats  = session.packetStats || null;
@@ -220,7 +228,7 @@ export default function HistoryDetailPage({ navigation, route }) {
   // Gráfico sEMG 
   // Eixo x = tempo e eixo y = valores do sEMG.
   const renderEmgLine = () => {
-    if (!emgChartData.length) {
+    if (!emgData.length) {
       return (
         <View style={styles.graphEmptyReal}>
           <Text style={styles.noDataText}>Sem dados de gráfico guardados para esta sessão</Text>
@@ -229,32 +237,25 @@ export default function HistoryDetailPage({ navigation, route }) {
     }
     return (
       <>
-        <LineChart
-          data={emgChartData.map((v) => ({ value: v }))}
+        <SignalChart
+          series={[{ data: emgData, color: colors.text.yellow }]}
+          width={EMG_CHART_TOTAL_WIDTH}
           height={90}
-          width={CHART_WIDTH}
-          color={colors.text.yellow}
-          thickness={2}
-          curved
-          hideDataPoints
-          initialSpacing={4}
-          endSpacing={4}
-          disableScroll
-          adjustToWidth
-          noOfSections={3}
-          yAxisTextStyle={styles.axisText}
+          minValue={0}
+          maxValue={EMG_Y_AXIS_MAX}
+          noOfSections={EMG_Y_SECTIONS}
+          yAxisLabels={EMG_Y_AXIS_LABELS}
           yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
-          yAxisColor={colors.border}
-          xAxisColor={colors.border}
+          axisColor={colors.border}
           rulesColor={colors.border}
-          rulesType="dashed"
+          axisTextStyle={styles.axisText}
         />
         <ChartTimeAxis
-          labels={buildTimeAxisLabels(emgChartData.length, session.duration)}
+          labels={buildTimeAxisLabels(CHART_WIDTH, session.duration)}
           chartWidth={CHART_WIDTH}
           yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
-          initialSpacing={4}
-          endSpacing={4}
+          initialSpacing={0}
+          endSpacing={0}
         />
       </>
     );
@@ -793,6 +794,12 @@ const styles = StyleSheet.create({
   axisText: {
     fontSize: 9,
     color: colors.text.secondary,
+  },
+  chartCaption: {
+    fontSize: 10,
+    color: colors.text.secondary,
+    marginTop: 6,
+    textAlign: 'right',
   },
   imuLegendRow: {
     flexDirection: 'row',

@@ -17,8 +17,11 @@ import moduleService from '../moduleService';
 
 const DISPLAY_POINTS = 40; // número de pontos que mostra no gráfico 
 const REFRESH_MS     = 1000; // intervalo de atualização do gráfico (ms)
-const Y_AXIS_LABEL_WIDTH = 42; // largura do eixo Y do gráfico 
+const Y_AXIS_LABEL_WIDTH = 50; // largura do eixo Y do gráfico (5 dígitos: 65535)
 const IMU_Y_AXIS_MAX = 100; // eixo Y do gráfico IMU fixo em [-100, 100]
+const EMG_Y_AXIS_MIN = 0;     // eixo Y do gráfico sEMG fixo na gama completa do ADC
+const EMG_Y_AXIS_MAX = 65535; // (16 bits sem sinal, tal como vem do módulo)
+const EMG_Y_AXIS_TICKS = [65535, 55535, 45535, 35535, 25535, 15535, 0];
 
 const IMU_AXIS_COLORS = [colors.primary, colors.secondary]; // Pitch, Roll
 
@@ -78,7 +81,9 @@ export default function ChartFullscreenPage({ navigation, route }) {
         width={chartWidth}
         height={chartHeight}
         showAxis
-        noOfSections={4}
+        minValue={EMG_Y_AXIS_MIN}
+        maxValue={EMG_Y_AXIS_MAX}
+        yAxisTicks={EMG_Y_AXIS_TICKS}
         axisTextStyle={styles.axisText}
         yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
         axisColor={colors.border}

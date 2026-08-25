@@ -3,6 +3,9 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path, Line } from 'react-native-svg';
 
 
+// Altura reservada a cada rótulo do eixo Y, usada para o centrar na sua marca
+const AXIS_LABEL_HEIGHT = 12;
+
 // Gráfico de linha simples e sem estado interno, para dados que mudam em tempo real (ex: EMG/IMU durante a monitorização)
 
 export default function LiveLineChart({
@@ -14,6 +17,7 @@ export default function LiveLineChart({
   showAxis = false,
   noOfSections = 4,
   noOfSectionsBelowZero = 0,
+  yAxisTicks,             // valores explícitos para o eixo Y (podem não ser equidistantes)
   axisColor = '#ccc',
   rulesColor = '#ccc',
   axisTextStyle,
@@ -56,36 +60,56 @@ export default function LiveLineChart({
     [series, plotWidth, height, min, range]
   );
 
-  const totalSections = Math.max(noOfSections + noOfSectionsBelowZero, 1);
-  const sectionIndexes = showAxis
-    ? Array.from({ length: totalSections + 1 }, (_, i) => i)
-    : [];
+  /* Marcas do eixo Y. Quando yAxisTicks é fornecido, cada marca é posicionada na
+     sua altura proporcional real - o que permite escalas não equidistantes, como
+     0, 10000, ..., 60000, 65535, onde o último intervalo é mais curto que os
+     restantes. Sem yAxisTicks mantém-se o comportamento original: noOfSections
+     divisões iguais entre min e max. */
+  const ticks = useMemo(() => {
+    if (!showAxis) return [];
+    const toY = (v) => height - ((v - min) / range) * height;
+
+    if (Array.isArray(yAxisTicks) && yAxisTicks.length > 0) {
+      return yAxisTicks.map((value) => ({ value, y: toY(value) }));
+    }
+
+    const totalSections = Math.max(noOfSections + noOfSectionsBelowZero, 1);
+    return Array.from({ length: totalSections + 1 }, (_, i) => ({
+      value: Math.round(max - (i / totalSections) * range),
+      y: (i / totalSections) * height,
+    }));
+  }, [showAxis, yAxisTicks, noOfSections, noOfSectionsBelowZero, min, max, range, height]);
 
   return (
     <View style={styles.row}>
       {showAxis && (
         <View style={[styles.axisColumn, { width: yAxisLabelWidth, height }]}>
-          {sectionIndexes.map((i) => {
-            const value = max - (i / totalSections) * range;
-            return (
-              <Text key={i} style={[styles.axisText, axisTextStyle]} numberOfLines={1}>
-                {Math.round(value)}
-              </Text>
-            );
-          })}
+          {ticks.map((tick, i) => (
+            <Text
+              key={i}
+              style={[
+                styles.axisText,
+                axisTextStyle,
+                // Centrada na marca, sem sair da área do gráfico nos extremos
+                { top: Math.min(Math.max(tick.y - AXIS_LABEL_HEIGHT / 2, 0), height - AXIS_LABEL_HEIGHT) },
+              ]}
+              numberOfLines={1}
+            >
+              {tick.value}
+            </Text>
+          ))}
         </View>
       )}
       <Svg width={plotWidth} height={height}>
-        {sectionIndexes.map((i) => {
-          const y = (i / totalSections) * height;
-          const isEdge = i === 0 || i === totalSections;
+        {ticks.map((tick, i) => {
+          const isEdge = tick.y <= 0.5 || tick.y >= height - 0.5;
           return (
             <Line
               key={i}
               x1={0}
-              y1={y}
+              y1={tick.y}
               x2={plotWidth}
-              y2={y}
+              y2={tick.y}
               stroke={isEdge ? axisColor : rulesColor}
               strokeWidth={1}
               strokeDasharray={isEdge ? undefined : '4,4'}
@@ -133,9 +157,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   axisColumn: {
-    justifyContent: 'space-between',
+    position: 'relative',
   },
   axisText: {
+    position: 'absolute',
+    right: 4,
+    height: AXIS_LABEL_HEIGHT,
+    lineHeight: AXIS_LABEL_HEIGHT,
     fontSize: 9,
     textAlign: 'right',
   },
