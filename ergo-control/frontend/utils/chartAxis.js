@@ -9,17 +9,22 @@ function formatAxisSeconds(sec) {
 
 // Gera rótulos de eixo para um gráfico de tempo, dado o número de pontos, a duração total em segundos e o número desejado de ticks
 export function buildTimeAxisLabels(pointCount, totalSeconds, tickCount = 5) {
-  if (!pointCount || pointCount <= 0) return [];
-  const labels = new Array(pointCount).fill('');
-  if (pointCount === 1) {
+  // pointCount tem de ser um inteiro finito: new Array(289.43) lança
+  // "RangeError: invalid array length". Em Android a largura do ecrã
+  // (Dimensions) costuma ser fracionária, por isso arredondamos aqui.
+  const count = Math.floor(Number(pointCount));
+  if (!Number.isFinite(count) || count <= 0) return [];
+
+  const labels = new Array(count).fill('');
+  if (count === 1) {
     labels[0] = formatAxisSeconds(totalSeconds);
     return labels;
   }
-  const ticks = Math.max(2, Math.min(tickCount, pointCount));
-  const step = (pointCount - 1) / (ticks - 1);
+  const ticks = Math.max(2, Math.min(tickCount, count));
+  const step = (count - 1) / (ticks - 1);
   for (let i = 0; i < ticks; i++) {
     const idx = Math.round(i * step);
-    const t = ((totalSeconds || 0) * idx) / (pointCount - 1);
+    const t = ((totalSeconds || 0) * idx) / (count - 1);
     labels[idx] = formatAxisSeconds(t);
   }
   return labels;

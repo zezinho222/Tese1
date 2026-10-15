@@ -30,7 +30,8 @@ import PdfIcon from '../assets/pdf.png';
 
 const SENSOR_LABELS = { EMG: 'sEMG', IMU: 'IMU', DUAL: 'sEMG + IMU' };
 const Y_AXIS_LABEL_WIDTH = 50;
-const CHART_WIDTH = Dimensions.get('window').width - 20 * 2 - 16 * 2 - Y_AXIS_LABEL_WIDTH;
+// Math.floor: a largura do ecrã pode ser fracionária em Android
+const CHART_WIDTH = Math.floor(Dimensions.get('window').width - 20 * 2 - 16 * 2 - Y_AXIS_LABEL_WIDTH);
 
 // Eixo Y do sEMG fixo na gama completa do ADC, expressa em volts (0 a 3.3 V)
 const EMG_Y_AXIS_MAX  = ADC_VREF;

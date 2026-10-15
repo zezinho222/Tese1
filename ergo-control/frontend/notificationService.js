@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
 const SETTINGS_KEY = '@ergocontrol/notification_settings';
-const CHANNEL_ID = 'ergocontrol-alerts';
+const CHANNEL_ID = 'ergocontrol-alerts-v2';
 
 const DEFAULT_SETTINGS = {
   notifications: true, // Notificações
@@ -28,7 +28,7 @@ function ensureAndroidChannel() {
     androidChannelPromise = Notifications.setNotificationChannelAsync(CHANNEL_ID, {
       name: 'Alertas ErgoControl',
       importance: Notifications.AndroidImportance.HIGH,
-      sound: 'default',
+      // sem 'sound' -> usa o som padrão do sistema ('default' seria tratado como ficheiro custom)
       vibrationPattern: [0, 250, 250, 250],
     }).catch((e) => {
       console.warn('[notificationService] Falha ao criar canal Android:', e);
@@ -74,7 +74,8 @@ async function send(title, body, { sound } = {}) {
       content: {
         title,
         body,
-        sound: sound ? 'default' : undefined,
+        // true = som padrão do sistema; não enviar `false` (o Android faz getString() ao valor e falha)
+        ...(sound ? { sound: true } : {}),
         ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
       },
       trigger: null, // imediata

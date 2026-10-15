@@ -28,6 +28,16 @@
           "icon": "./assets/icon.png",
           "color": "#ffffff"
         }
+      ],
+      "expo-sharing",
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
     ],
     "ios": {
@@ -46,7 +56,6 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.lanzass.ergocontrol",
-      "usesCleartextTraffic": true,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_WIFI_STATE",
