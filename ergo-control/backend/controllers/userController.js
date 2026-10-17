@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const User = require('../models/User');
 const Session = require('../models/Session');
+const SessionChunk = require('../models/SessionChunk');
 const Module = require('../models/Module');
 
 // Função auxiliar para enviar email
@@ -284,6 +285,7 @@ const deleteAccount = async (req, res) => {
       });
     }
 
+    await SessionChunk.deleteMany({ user: user._id });
     await Session.deleteMany({ user: user._id });
     await Module.deleteMany({ user: user._id });
     await User.findByIdAndDelete(user._id);

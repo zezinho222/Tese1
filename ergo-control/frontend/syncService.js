@@ -9,6 +9,12 @@ const MODULE_KEY          = '@ergocontrol/connected_module';
 const PENDING_DELETES_KEY = '@ergocontrol/pending_session_deletes';
 const MAX_CHART_POINTS    = 200; // limite de pontos desenhados nos gráficos por sessão
 
+// Máximo de amostras por bloco enviado ao backend. O MongoDB só aceita documentos até 16 MiB,
+// por isso as sessões longas são enviadas em vários blocos pequenos (~0,5 MB cada).
+const MAX_EMG_PER_CHUNK = 50000;
+const MAX_IMU_PER_CHUNK = 5000;
+const MAX_ENV_PER_CHUNK = 5000;
+
 let syncPromise    = null;
 let netUnsubscribe = null;
 let tokenGetter    = () => null;
@@ -36,6 +42,31 @@ function downsampleArray(arr, maxPoints = MAX_CHART_POINTS) {
     result.push(arr[Math.floor(i * step)]);
   }
   return result;
+}
+
+// Divide o sinal de uma sessão em blocos para enviar ao backend.
+// Os três sinais são cortados em N partes iguais, por isso o bloco i de cada um
+// cobre o mesmo intervalo de tempo mesmo com frequências de amostragem diferentes.
+// Ao juntar os blocos por ordem obtém-se exatamente os arrays originais.
+function splitIntoChunks({ emgData, imuData, envelope }) {
+  const emg = Array.isArray(emgData) ? emgData : [];
+  const imu = Array.isArray(imuData) ? imuData : [];
+  const env = Array.isArray(envelope) ? envelope : [];
+
+  const n = Math.max(
+    Math.ceil(emg.length / MAX_EMG_PER_CHUNK),
+    Math.ceil(imu.length / MAX_IMU_PER_CHUNK),
+    Math.ceil(env.length / MAX_ENV_PER_CHUNK),
+  );
+
+  const part = (arr, i) =>
+    arr.slice(Math.floor((arr.length * i) / n), Math.floor((arr.length * (i + 1)) / n));
+
+  const chunks = [];
+  for (let i = 0; i < n; i++) {
+    chunks.push({ emgData: part(emg, i), imuData: part(imu, i), envelope: part(env, i) });
+  }
+  return chunks;
 }
 
 // Separa um objeto de sessão em { light, data }
@@ -416,16 +447,31 @@ async function syncSessions(token) {
 
       if (s.endTime) {
         const data = (await readSessionData(s.localId)) || {};
+
+        // 1) Envia o sinal em blocos. É seguro repetir: o backend substitui o bloco
+        //    com o mesmo índice, por isso se a rede falhar a meio recomeça-se sem duplicar.
+        const chunks = splitIntoChunks(data);
+        let chunksOk = true;
+        for (let c = 0; c < chunks.length; c++) {
+          const resChunk = await api.putSessionChunk(token, s.backendId, c, chunks[c]);
+          if (!resChunk?.success) {
+            lastSyncError = resChunk?.message || `Backend recusou o bloco ${c + 1} de ${chunks.length}.`;
+            console.warn('[syncService]', lastSyncError);
+            chunksOk = false;
+            break;
+          }
+        }
+        if (!chunksOk) continue;
+
+        // 2) Fecha a sessão. O backend confirma que recebeu todos os blocos (chunkCount).
         const res2 = await api.endSession(token, s.backendId, {
           endTime: s.endTime,
           duration: s.duration,
           mvc: s.mvc,
           alertCount: s.alertCount,
-          emgData: data.emgData || [],
-          envelope: data.envelope || [],
           envelopeParams: data.envelopeParams || null,
-          imuData: data.imuData || [],
           packetStats: data.packetStats || null,
+          chunkCount: chunks.length,
         });
         if (res2?.success) {
           s.synced = true;

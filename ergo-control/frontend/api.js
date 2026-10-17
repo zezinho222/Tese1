@@ -172,10 +172,20 @@ export const api = {
       body: JSON.stringify({ sensorType, startTime, endTime, duration, mvc, alertCount, module }),
     }),
 
-  endSession: async (token, sessionId, { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats }) =>
+  // Envia um bloco do sinal da sessão. Reenviar o mesmo índice substitui o bloco,
+  // por isso é seguro repetir se a rede falhar a meio.
+  putSessionChunk: async (token, sessionId, index, { emgData, imuData, envelope }) =>
+    authFetch(`/api/sessions/${sessionId}/chunks/${index}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ emgData, imuData, envelope }),
+    }),
+
+  // Fecha a sessão. Com chunkCount, o sinal já foi enviado em blocos (putSessionChunk)
+  // e emgData/imuData/envelope não vão neste pedido.
+  endSession: async (token, sessionId, { endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats, chunkCount }) =>
     authFetch(`/api/sessions/${sessionId}/end`, token, {
       method: 'PATCH',
-      body: JSON.stringify({ endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats }),
+      body: JSON.stringify({ endTime, duration, mvc, alertCount, emgData, imuData, envelope, envelopeParams, packetStats, chunkCount }),
     }),
 
   deleteSession: async (token, sessionId) =>

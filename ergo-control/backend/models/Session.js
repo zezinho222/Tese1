@@ -61,7 +61,13 @@ const sessionSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    // Amostras EMG
+    // Número de blocos de sinal (coleção SessionChunk) desta sessão.
+    // 0 = sessão antiga, com emgData/imuData/envelope guardados neste documento.
+    chunkCount: {
+      type: Number,
+      default: 0,
+    },
+    // Amostras EMG (só nas sessões antigas; as novas usam SessionChunk)
     emgData: {
       type: [Number],
       default: [],
