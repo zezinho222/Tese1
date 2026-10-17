@@ -85,7 +85,8 @@ export default function ConnectModulePage({ navigation }) {
     return 'IMU';
   };
 
-  // Confirmar seleção -> abre modal POT (no IMU salta logo para o modal FREQ)
+  // Confirmar seleção -> com sEMG abre o modal POT; só IMU guarda logo o módulo,
+  // sem modal (o utilizador não tem nada a escolher para o IMU)
   const handleSeguinte = () => {
     if (!atLeastOne) {
       setError('Seleciona pelo menos um sensor.');
@@ -99,7 +100,10 @@ export default function ConnectModulePage({ navigation }) {
       setSelectedOffset(null);
       setModalStep(STEP_POT);
     } else {
-      setModalStep(STEP_FREQ);
+      // Só IMU: guarda logo, sem modal e sem mostrar frequência. O comando FREQ
+      // tem de ser enviado na mesma (com o valor por omissão): sem ele o módulo
+      // não envia dados, mesmo no modo IMU.
+      handleConfirmFreq();
     }
   };
 
@@ -137,7 +141,9 @@ export default function ConnectModulePage({ navigation }) {
       sensorSelection: sensorString,
       offsetValue:     semgOn ? selectedOffset.value : null,
       offsetLabel:     semgOn ? selectedOffset.label : null,
-      freqHz,
+      // Só IMU: o utilizador não escolheu frequência, por isso não se guarda nem
+      // se mostra (o freqValue continua a ser enviado ao módulo, é interno)
+      freqHz:          semgOn ? freqHz : null,
       freqValue,
       calibrated:      { sEMG: false, IMU: imuOn },
       mvc:             null,

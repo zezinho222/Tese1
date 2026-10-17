@@ -2,8 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { api } from './api';
 import moduleService from './moduleService';
+import * as FileSystem from 'expo-file-system/legacy';
 
-const SESSIONS_KEY        = '@ergocontrol/sessions';
+const SESSIONS_KEY       = '@ergocontrol/sessions';
 const SESSION_DATA_PREFIX = '@ergocontrol/session_data/';
 const MODULE_KEY          = '@ergocontrol/connected_module';
 const PENDING_DELETES_KEY = '@ergocontrol/pending_session_deletes';
@@ -111,20 +112,95 @@ async function writeIndex(sessions) {
   }
 }
 
-// Dados pesados de uma sessão
-async function readSessionData(localId) {
+/* Dados pesados de uma sessão.
+
+   Cada sessão é guardada num ficheiro JSON próprio (documentDirectory/sessions/<id>.json)
+   e não no AsyncStorage. No Android o AsyncStorage é uma base de dados SQLite com dois
+   limites que uma sessão longa ultrapassa:
+     1) não consegue LER uma linha com mais de ~2 MB ("Couldn't read row 0, col 0 from
+        CursorWindow"), mesmo que a tenha conseguido gravar;
+     2) a base de dados inteira tem um tamanho máximo (6 MB por omissão); acima disso
+        dá "database or disk is full (code 13)".
+   Uma sessão sEMG+IMU de 5 minutos a 1000 Hz tem ~3 MB e a 2000 Hz ~7 MB.
+
+   Sessões antigas que ainda estão no AsyncStorage (numa só chave ou em blocos)
+   continuam a ser lidas, e passam para ficheiro na primeira leitura (o que também
+   liberta espaço no AsyncStorage). */
+const SESSION_DIR = `${FileSystem.documentDirectory || ''}sessions/`;
+const sessionFileUri = (localId) => `${SESSION_DIR}${String(localId).replace(/[^\w.-]/g, '_')}.json`;
+const dataChunkKey = (localId, i) => `${SESSION_DATA_PREFIX}${localId}/c/${i}`;
+
+// Lê uma sessão guardada no AsyncStorage (formato antigo: uma só chave, ou em blocos)
+async function readLegacySessionData(localId) {
   try {
     const raw = await AsyncStorage.getItem(SESSION_DATA_PREFIX + localId);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const head = JSON.parse(raw);
+    if (!head?.__chunked) return head; // formato antigo (uma só chave)
+
+    let emgData = [];
+    let imuData = [];
+    let envelope = [];
+    for (let i = 0; i < head.chunks; i++) {
+      const part = await AsyncStorage.getItem(dataChunkKey(localId, i));
+      if (!part) throw new Error(`bloco ${i + 1}/${head.chunks} em falta`);
+      const c = JSON.parse(part);
+      emgData  = emgData.concat(c.emgData   || []);
+      imuData  = imuData.concat(c.imuData   || []);
+      envelope = envelope.concat(c.envelope || []);
+    }
+    return {
+      emgData,
+      imuData,
+      envelope,
+      envelopeParams: head.envelopeParams ?? null,
+      packetStats:    head.packetStats    ?? null,
+    };
   } catch (e) {
     console.warn('[syncService] Falha ao ler os dados da sessão', localId, e?.message || e);
     return null;
   }
 }
 
+// Remove do AsyncStorage tudo o que é desta sessão (chave principal + blocos, mesmo órfãos)
+async function removeLegacySessionData(localId) {
+  try {
+    const base = SESSION_DATA_PREFIX + localId;
+    const keys = (await AsyncStorage.getAllKeys())
+      .filter((k) => k === base || k.startsWith(`${base}/c/`));
+    if (keys.length) await AsyncStorage.multiRemove(keys);
+  } catch {}
+}
+
+async function readSessionData(localId) {
+  try {
+    const uri = sessionFileUri(localId);
+    const info = await FileSystem.getInfoAsync(uri);
+    if (info.exists) {
+      return JSON.parse(await FileSystem.readAsStringAsync(uri));
+    }
+  } catch (e) {
+    console.warn('[syncService] Falha ao ler o ficheiro da sessão', localId, e?.message || e);
+    return null;
+  }
+
+  // Sessão antiga, ainda no AsyncStorage: lê e passa para ficheiro
+  const legacy = await readLegacySessionData(localId);
+  if (legacy) await writeSessionData(localId, legacy);
+  return legacy;
+}
+
 async function writeSessionData(localId, data) {
   try {
-    await AsyncStorage.setItem(SESSION_DATA_PREFIX + localId, JSON.stringify(data || {}));
+    const dir = await FileSystem.getInfoAsync(SESSION_DIR);
+    if (!dir.exists) await FileSystem.makeDirectoryAsync(SESSION_DIR, { intermediates: true });
+
+    await FileSystem.writeAsStringAsync(
+      sessionFileUri(localId),
+      JSON.stringify(data || {}),
+      { encoding: 'utf8' }
+    );
+    await removeLegacySessionData(localId); // liberta espaço no AsyncStorage
     return true;
   } catch (e) {
     console.warn('[syncService] Falha ao gravar os dados da sessão', localId, e?.message || e);
@@ -134,7 +210,29 @@ async function writeSessionData(localId, data) {
 
 async function removeSessionData(localId) {
   try {
-    await AsyncStorage.removeItem(SESSION_DATA_PREFIX + localId);
+    await FileSystem.deleteAsync(sessionFileUri(localId), { idempotent: true });
+  } catch {}
+  await removeLegacySessionData(localId);
+}
+
+// Remove do AsyncStorage os blocos "órfãos": blocos de uma sessão cuja gravação falhou a
+// meio (ficaram sem chave principal). Não servem para nada e ocupam espaço da base de dados.
+async function sweepOrphanSessionData() {
+  try {
+    const heads = new Set();
+    const chunks = [];
+    for (const k of await AsyncStorage.getAllKeys()) {
+      if (!k.startsWith(SESSION_DATA_PREFIX)) continue;
+      const rest = k.slice(SESSION_DATA_PREFIX.length);
+      const i = rest.indexOf('/c/');
+      if (i === -1) heads.add(rest);
+      else chunks.push({ key: k, id: rest.slice(0, i) });
+    }
+    const orphans = chunks.filter((c) => !heads.has(c.id)).map((c) => c.key);
+    if (orphans.length) {
+      await AsyncStorage.multiRemove(orphans);
+      console.log(`[syncService] Removidos ${orphans.length} blocos órfãos do armazenamento local.`);
+    }
   } catch {}
 }
 
@@ -142,6 +240,7 @@ let migrated = false;
 async function migrateLegacyStorage() {
   if (migrated) return;
   migrated = true;
+  await sweepOrphanSessionData();
   const index = await readIndex();
   if (index.length === 0) return;
   const needsMigration = index.some((s) => HEAVY_FIELDS.some((f) => f in s));
@@ -624,6 +723,12 @@ async function clearAllLocalData() {
     if (nossas.length) await AsyncStorage.multiRemove(nossas);
   } catch (e) {
     console.warn('[sync] Falha ao limpar dados locais:', e?.message ?? e);
+  }
+  // Ficheiros com os dados das sessões
+  try {
+    await FileSystem.deleteAsync(SESSION_DIR, { idempotent: true });
+  } catch (e) {
+    console.warn('[sync] Falha ao apagar os ficheiros das sessões:', e?.message ?? e);
   }
 }
 
